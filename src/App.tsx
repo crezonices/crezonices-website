@@ -15,6 +15,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminGuard } from './features/admin/AdminGuard';
 import { AdminDashboard, AdminOverview } from './features/admin/AdminDashboard';
 import { AdminLoginPage } from './features/admin/AdminLoginPage';
+import { ChangePasswordPage } from './features/admin/ChangePasswordPage';
 import {
   ActivityLogsViewer,
   AdministratorsManager,
@@ -42,6 +43,7 @@ export function App() {
 
         {/* Protected Enterprise Admin Dashboard (All 13 Fully-Functional Modules) */}
         <Route element={<AdminGuard />}>
+          <Route path="/admin/change-password" element={<ChangePasswordPage />} />
           <Route path="/admin" element={<AdminDashboard />}>
             <Route index element={<AdminOverview />} />
             <Route path="dashboard" element={<AdminOverview />} />
