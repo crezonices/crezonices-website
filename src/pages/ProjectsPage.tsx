@@ -34,7 +34,8 @@ export function ProjectsPage() {
   return (
     <main>
       <PageHero
-        eyebrow="Products & Architecture Portfolio"
+        kind="projects"
+        eyebrow="Projects & Engineering Portfolio"
         title="Intelligent systems, applications, and technology in development."
         copy="Explore the projects, technological concepts, and digital solutions engineered by the Crezonices team to address real-world challenges."
         badge="Live Portfolio"

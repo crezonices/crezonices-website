@@ -7,6 +7,7 @@ export function ContactPage() {
   return (
     <main>
       <PageHero
+        kind="contact"
         eyebrow="Direct Communications & Inquiries"
         title="Initiate a conversation with the Crezonices team."
         copy="Whether you have an inquiry regarding a new technology venture, web system, or research partnership, our engineers and directorship are ready to listen."

@@ -5,9 +5,9 @@ type PageHeroKind = 'projects' | 'about' | 'services' | 'founders' | 'contact';
 
 function resolveKind(eyebrow: string): PageHeroKind {
   const text = eyebrow.toLowerCase();
-  if (text.includes('project')) return 'projects';
-  if (text.includes('about')) return 'about';
-  if (text.includes('service')) return 'services';
+  if (text.includes('project') || text.includes('product') || text.includes('portfolio')) return 'projects';
+  if (text.includes('about') || text.includes('ecosystem')) return 'about';
+  if (text.includes('service') || text.includes('capability') || text.includes('solution')) return 'services';
   if (text.includes('founder') || text.includes('people') || text.includes('team') || text.includes('leadership') || text.includes('director')) return 'founders';
   return 'contact';
 }
@@ -85,13 +85,15 @@ export function PageHero({
   title,
   copy,
   badge,
+  kind: explicitKind,
 }: {
   eyebrow: string;
   title: string;
   copy: string;
   badge?: string;
+  kind?: PageHeroKind;
 }) {
-  const kind = resolveKind(eyebrow);
+  const kind = explicitKind || resolveKind(eyebrow);
 
   return (
     <section className="page-hero">
