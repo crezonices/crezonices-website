@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function admin() { return request.auth != null && (request.auth.token.admin == true || request.auth.token.role == 'admin'); }
+    function published() { return resource.data.published == true || resource.data.isPublished == true || resource.data.active == true; }
+    match /projects/{id} { allow read: if published() || admin(); allow write: if admin(); }
+    match /founders/{id} { allow read: if published() || admin(); allow write: if admin(); }
+    match /teamMembers/{id} { allow read: if resource.data.isPublished == true || admin(); allow write: if admin(); }
+    match /services/{id} { allow read: if resource.data.active == true || admin(); allow write: if admin(); }
+    match /reviews/{id} { allow read: if resource.data.published == true || admin(); allow write: if admin(); }
+    match /settings/company { allow read: if true; allow write: if admin(); }
+    match /siteContent/{id} { allow read: if true; allow write: if admin(); }
+    match /enquiries/{id} { allow read, write: if admin(); }
+    match /activityLogs/{id} { allow read: if admin(); allow write: if false; }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

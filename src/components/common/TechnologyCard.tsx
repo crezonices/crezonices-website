@@ -1,0 +1,2 @@
+import { ArrowUpRight } from 'lucide-react'; import type { Domain } from '../../data/content';
+export function TechnologyCard({domain}:{domain:Domain}){const Icon=domain.icon;return <a className="technology-card" href="/services" data-interactive><div className="card-icon"><Icon size={25}/></div><span>{domain.label}</span><h3>{domain.name}</h3><p>{domain.description}</p><ArrowUpRight size={19}/></a>}
