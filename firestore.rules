@@ -1,17 +1,166 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function admin() { return request.auth != null && (request.auth.token.admin == true || request.auth.token.role == 'admin'); }
-    function published() { return resource.data.published == true || resource.data.isPublished == true || resource.data.active == true; }
-    match /projects/{id} { allow read: if published() || admin(); allow write: if admin(); }
-    match /founders/{id} { allow read: if published() || admin(); allow write: if admin(); }
-    match /teamMembers/{id} { allow read: if resource.data.isPublished == true || admin(); allow write: if admin(); }
-    match /services/{id} { allow read: if resource.data.active == true || admin(); allow write: if admin(); }
-    match /reviews/{id} { allow read: if resource.data.published == true || admin(); allow write: if admin(); }
-    match /settings/company { allow read: if true; allow write: if admin(); }
-    match /siteContent/{id} { allow read: if true; allow write: if admin(); }
-    match /enquiries/{id} { allow read, write: if admin(); }
-    match /activityLogs/{id} { allow read: if admin(); allow write: if false; }
+
+    // ===============================================================
+    // Assumed Data Model & Security Architecture
+    // ===============================================================
+    //
+    // Collection: projects
+    // Document ID: auto-generated or slug
+    // Fields:
+    //   - title: string (required)
+    //   - description: string (required)
+    //   - category: string (optional)
+    //   - published / isPublished: bool (optional)
+    //   - coverImage: string (optional)
+    //
+    // Collection: teamMembers / founders
+    // Document ID: auto-generated or slug
+    // Fields:
+    //   - name: string (required)
+    //   - role / designation: string (required)
+    //   - isPublished: bool (optional)
+    //
+    // Collection: services
+    // Document ID: auto-generated or slug
+    // Fields:
+    //   - title: string (required)
+    //   - summary / description: string (required)
+    //   - active / isPublished: bool (optional)
+    //
+    // Collection: reviews
+    // Document ID: auto-generated
+    // Fields:
+    //   - clientName: string (required)
+    //   - quote / review: string (required)
+    //   - rating: number (optional)
+    //   - published / isPublished: bool (optional)
+    //
+    // Collection: pageContent
+    // Document ID: slug (e.g. homepage, about, etc.)
+    // Fields:
+    //   - pageSlug: string (required)
+    //   - heroTitle: string (optional)
+    //
+    // Collection: siteSettings
+    // Document ID: main
+    // Fields:
+    //   - siteTitle, contactEmail, socialLinks, maintenanceMode, etc.
+    //
+    // Collection: enquiries
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required, 1-100 chars)
+    //   - email: string (required, 3-255 chars)
+    //   - message: string (required, 1-5000 chars)
+    //   - status: string (new | in-progress | pending | resolved)
+    //   - createdAt: timestamp or string (required)
+    //
+    // Collection: activityLogs
+    // Document ID: auto-generated
+    // Fields:
+    //   - action, module, adminEmail, timestamp, details
+    //
+    // ===============================================================
+
+    // Administrative privileges check
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin' ||
+        (request.auth.token.email != null && (
+          request.auth.token.email == 'admin@crezonices.com' ||
+          request.auth.token.email == 'director@crezonices.com'
+        ))
+      );
+    }
+
+    // Helper for public visibility
+    function isPublished() {
+      return (
+        resource.data.published == true ||
+        resource.data.isPublished == true ||
+        resource.data.active == true
+      );
+    }
+
+    // Validation for public enquiry submission
+    function isValidEnquiry() {
+      let data = request.resource.data;
+      return (
+        data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 255 &&
+        data.message is string && data.message.size() > 0 && data.message.size() <= 5000
+      );
+    }
+
+    // 1. Projects
+    match /projects/{id} {
+      allow read: if isPublished() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // 2. Team Members / Leadership
+    match /teamMembers/{id} {
+      allow read: if isPublished() || isAdmin();
+      allow write: if isAdmin();
+    }
+    match /founders/{id} {
+      allow read: if isPublished() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // 3. Services
+    match /services/{id} {
+      allow read: if isPublished() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // 4. Client Testimonials & Reviews
+    match /reviews/{id} {
+      allow read: if isPublished() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // 5. Page Content (Editable copy for 6 public pages)
+    match /pageContent/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /siteContent/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 6. Site Settings & Contact Hub Metadata
+    match /siteSettings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 7. Contact Enquiries
+    // Public visitors can submit genuine inquiries.
+    // Reading, modifying status, and deleting inquiries is restricted to administrators.
+    match /enquiries/{id} {
+      allow create: if isValidEnquiry();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // 8. Immutable Audit Activity Logs
+    // Admins can log operations and view the audit trail.
+    // Logs cannot be modified or deleted to preserve audit integrity.
+    match /activityLogs/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Default deny for all other paths
     match /{document=**} { allow read, write: if false; }
   }
 }

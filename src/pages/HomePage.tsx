@@ -3,31 +3,45 @@ import { motion } from 'motion/react';
 import {
   ArrowRight,
   ArrowUpRight,
-  Brain,
   Cpu,
   Layers,
   Network,
   ShieldCheck,
   Sparkles,
   Terminal,
-  Zap,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { ProjectCard } from '../components/common/ProjectCard';
 import { SectionHeading } from '../components/common/SectionHeading';
 import { TechnologyCard } from '../components/common/TechnologyCard';
-import { domains, founders, projects, services } from '../data/content';
+import { domains } from '../data/content';
+import { usePageContent, useProjects, useServices, useTeam } from '../features/content/usePublicContent';
 
-const HumanAiHybridHero = lazy(() =>
-  import('../components/three/HumanAiHybridHero').then((m) => ({ default: m.HumanAiHybridHero }))
+const ShieldSentinelHeroV3 = lazy(() =>
+  import('../components/three/ShieldSentinelHeroV3').then((m) => ({ default: m.ShieldSentinelHeroV3 }))
 );
 
 export function HomePage() {
+  const content = usePageContent('homepage', {
+    eyebrow: 'Pioneering Intelligent Systems',
+    title: 'Architecting intelligent solutions for an interconnected future.',
+    description:
+      'Crezonices engineers advanced products, neural software architectures, and cybersecurity solutions that bridge complex technologies with real-world impact.',
+    ctaPrimaryLabel: 'Explore our projects',
+    ctaPrimaryLink: '/projects',
+    ctaSecondaryLabel: 'Discover our services',
+    ctaSecondaryLink: '/services',
+  });
+
+  const { data: projects } = useProjects();
+  const { data: founders } = useTeam();
+  const { data: services } = useServices();
+
   return (
     <main>
-      {/* 1. CINEMATIC HERO SECTION WITH EXPANSIVE 3D BRAIN STAGE */}
+      {/* 1. CINEMATIC HERO SECTION: SENTINEL SHIELD & NEURAL MATRIX */}
       <section className="hero">
-        <div className="hero-grid-layout">
+        <div className="hero-grid-layout hero-v3-grid">
           {/* Left Column: Editorial Headline & Actions */}
           <div className="hero-copy">
             <motion.div
@@ -36,7 +50,7 @@ export function HomePage() {
               transition={{ duration: 0.5 }}
               className="hero-badge-row"
             >
-              <span className="eyebrow">Pioneering Intelligent Systems</span>
+              <span className="eyebrow">{content.eyebrow || 'Pioneering Intelligent Systems'}</span>
               <span className="hero-status-pill">
                 <span className="status-dot-pulse" /> Neural Core Active
               </span>
@@ -48,7 +62,7 @@ export function HomePage() {
               transition={{ duration: 0.7, delay: 0.08 }}
               className="hero-heading"
             >
-              Architecting intelligent solutions for an <i>interconnected future.</i>
+              {content.title || 'Architecting intelligent solutions for an interconnected future.'}
             </motion.h1>
 
             <motion.p
@@ -57,8 +71,8 @@ export function HomePage() {
               transition={{ duration: 0.7, delay: 0.16 }}
               className="hero-description"
             >
-              Crezonices engineers advanced products, neural software architectures, and
-              cybersecurity solutions that bridge complex technologies with real-world impact.
+              {content.description ||
+                'Crezonices engineers advanced products, neural software architectures, and cybersecurity solutions that bridge complex technologies with real-world impact.'}
             </motion.p>
 
             <motion.div
@@ -67,24 +81,26 @@ export function HomePage() {
               transition={{ duration: 0.7, delay: 0.24 }}
               className="hero-actions"
             >
-              <Button href="/projects">Explore our projects</Button>
-              <Button href="/services" variant="ghost">
-                Discover our services
+              <Button href={content.ctaPrimaryLink || '/projects'}>
+                {content.ctaPrimaryLabel || 'Explore our projects'}
+              </Button>
+              <Button href={content.ctaSecondaryLink || '/services'} variant="ghost">
+                {content.ctaSecondaryLabel || 'Discover our services'}
               </Button>
             </motion.div>
           </div>
 
-          {/* Right Column: Expansive Half-Human, Half-Machine AI Hero Stage */}
-          <div className="hero-stage-v2">
+          {/* Right Column: Cybernetic Iron Shield Mask & Neural Brain Sentinel */}
+          <div className="hero-stage-v3">
             <Suspense
               fallback={
                 <div className="scene loading-scene">
                   <div className="scene-spinner" />
-                  <span>Synchronizing human–AI cognitive matrix…</span>
+                  <span>Synchronizing sentinel cognitive lattice…</span>
                 </div>
               }
             >
-              <HumanAiHybridHero />
+              <ShieldSentinelHeroV3 />
             </Suspense>
           </div>
         </div>

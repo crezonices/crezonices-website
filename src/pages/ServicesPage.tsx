@@ -20,12 +20,14 @@ import {
 import { PageHero } from '../components/common/PageHero';
 import { EnquiryForm } from '../components/common/EnquiryForm';
 import { SectionHeading } from '../components/common/SectionHeading';
-import { services } from '../data/content';
+import { useServices } from '../features/content/usePublicContent';
 
 export function ServicesPage() {
+  const { data: services } = useServices();
   return (
     <main>
       <PageHero
+        kind="services"
         eyebrow="Professional Services & Engineering"
         title="Purpose-built technological solutions for the digital era."
         copy="From modern responsive web systems to intelligent algorithms, secure architectures, and connected edge devices, Crezonices delivers practical and scalable engineering."

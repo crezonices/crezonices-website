@@ -10,6 +10,7 @@ export function FoundersPage() {
   return (
     <main>
       <PageHero
+        kind="founders"
         eyebrow="Directors & Leadership"
         title="Meet the Directors of Crezonices."
         copy="Leadership, vision and direction behind Crezonices. Our two Directors combine strategic technological vision, technical craft, and an unwavering commitment to engineering integrity."

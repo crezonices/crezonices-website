@@ -48,6 +48,7 @@ export function AboutPage() {
   return (
     <main>
       <PageHero
+        kind="about"
         eyebrow="About Crezonices"
         title="Engineering complex technology ecosystems for a connected world."
         copy="Crezonices is an advanced technology development company creating specialized software, artificial intelligence applications, distributed IoT networks, and cybersecurity architectures."
