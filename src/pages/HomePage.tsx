@@ -18,8 +18,8 @@ import { SectionHeading } from '../components/common/SectionHeading';
 import { TechnologyCard } from '../components/common/TechnologyCard';
 import { domains, founders, projects, services } from '../data/content';
 
-const HolographicHeroScene = lazy(() =>
-  import('../components/three/HolographicHeroScene').then((m) => ({ default: m.HolographicHeroScene }))
+const HumanAiHybridHero = lazy(() =>
+  import('../components/three/HumanAiHybridHero').then((m) => ({ default: m.HumanAiHybridHero }))
 );
 
 export function HomePage() {
@@ -74,17 +74,17 @@ export function HomePage() {
             </motion.div>
           </div>
 
-          {/* Right Column: Expansive 3D Holographic AI Human & Interface Stage */}
-          <div className="hero-stage holographic-stage-wrapper">
+          {/* Right Column: Expansive Half-Human, Half-Machine AI Hero Stage */}
+          <div className="hero-stage-v2">
             <Suspense
               fallback={
                 <div className="scene loading-scene">
                   <div className="scene-spinner" />
-                  <span>Synchronizing holographic neural matrix…</span>
+                  <span>Synchronizing human–AI cognitive matrix…</span>
                 </div>
               }
             >
-              <HolographicHeroScene />
+              <HumanAiHybridHero />
             </Suspense>
           </div>
         </div>
