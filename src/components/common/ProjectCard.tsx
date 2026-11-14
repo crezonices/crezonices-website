@@ -1,9 +1,11 @@
-import { ArrowUpRight, Cpu, Layers, Sparkles } from 'lucide-react';
+import { ArrowUpRight, Cpu, Edit3, Layers, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, type PointerEvent } from 'react';
 import type { Project } from '../../types/models';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function ProjectCard({ project }: { project: Project }) {
+  const { user } = useAuth();
   const [tilt, setTilt] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -15,7 +17,7 @@ export function ProjectCard({ project }: { project: Project }) {
     setTilt(`perspective(1000px) rotateX(${y * -6}deg) rotateY(${x * 8}deg) translateY(-8px)`);
   };
 
-  const image = project.logoUrl || project.imageUrl || project.thumbnail;
+  const image = project.coverImageUrl || project.logoUrl || project.imageUrl || project.thumbnail;
 
   return (
     <article
@@ -23,8 +25,20 @@ export function ProjectCard({ project }: { project: Project }) {
       data-interactive
       onPointerMove={move}
       onPointerLeave={() => setTilt('')}
-      style={{ transform: tilt }}
+      style={{ transform: tilt, position: 'relative' }}
     >
+      {/* Admin 1 Quick Edit Shortcut */}
+      {user && (
+        <Link
+          to={`/admin/projects`}
+          className="admin-quick-edit-pill"
+          title="Edit project in Admin Portal"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Edit3 size={11} /> Edit Project
+        </Link>
+      )}
+
       {/* Visual Header / Cover Art */}
       <div className="project-art">
         {image && !imageFailed ? (

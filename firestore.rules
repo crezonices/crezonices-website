@@ -164,6 +164,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // 10. Google Drive Image Metadata & Asset References
+    match /imageMetadata/{fileId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 11. Backend Configuration & OAuth Secrets (Admin SDK only - zero client access)
+    match /systemConfig/{doc} {
+      allow read, write: if false;
+    }
+
     // Default deny for all other paths
     match /{document=**} { allow read, write: if false; }
   }

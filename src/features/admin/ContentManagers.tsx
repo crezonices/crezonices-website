@@ -26,6 +26,8 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getApiUrl } from '../../lib/api';
+import { ImageUploader } from '../../components/common/ImageUploader';
 import {
   deleteAdminRecord,
   getAdminRecord,
@@ -77,8 +79,10 @@ const blankProject = {
   fullDescription: '',
   logoUrl: '',
   coverImageUrl: '',
+  gallery: [] as string[],
   projectUrl: '',
   githubUrl: '',
+  completionDate: '',
   category: 'Web Development' as ProjectCategory,
   technologies: '',
   status: 'Published' as string,
@@ -119,7 +123,15 @@ export function ProjectsManager() {
       return;
     }
     if (edit.logoUrl && !urlIsSafe(edit.logoUrl)) {
-      setNotice({ type: 'error', message: 'Logo URL must be HTTPS and not a GitHub /blob/ link.' });
+      setNotice({ type: 'error', message: 'Logo URL must be HTTPS.' });
+      return;
+    }
+    if (edit.projectUrl && !urlIsSafe(edit.projectUrl)) {
+      setNotice({ type: 'error', message: 'Project URL must use secure HTTPS protocol.' });
+      return;
+    }
+    if (edit.githubUrl && !urlIsSafe(edit.githubUrl)) {
+      setNotice({ type: 'error', message: 'GitHub URL must use secure HTTPS protocol.' });
       return;
     }
 
@@ -134,7 +146,8 @@ export function ProjectsManager() {
             .split(',')
             .map((x) => x.trim())
             .filter(Boolean),
-          imageUrl: edit.logoUrl,
+          imageUrl: edit.coverImageUrl || edit.logoUrl,
+          gallery: edit.gallery || [],
         },
         user.uid,
         user.email || '',
@@ -158,6 +171,20 @@ export function ProjectsManager() {
       setNotice({ type: 'error', message: 'Failed to delete project.' });
     }
   }
+
+  const handleAddGalleryImage = (url: string) => {
+    if (!edit) return;
+    if (edit.gallery.includes(url)) return;
+    setEdit({ ...edit, gallery: [...edit.gallery, url] });
+  };
+
+  const handleRemoveGalleryImage = (indexToRemove: number) => {
+    if (!edit) return;
+    setEdit({
+      ...edit,
+      gallery: edit.gallery.filter((_, idx) => idx !== indexToRemove),
+    });
+  };
 
   return (
     <section className="admin-page">
@@ -231,7 +258,7 @@ export function ProjectsManager() {
           </label>
 
           <label>
-            Full Architecture Description
+            Full Architecture Description (Optional)
             <textarea
               rows={4}
               value={edit.fullDescription}
@@ -240,16 +267,57 @@ export function ProjectsManager() {
             />
           </label>
 
+          {/* GOOGLE DRIVE IMAGE UPLOADERS */}
           <div className="form-grid-2">
-            <label>
-              Direct HTTPS Logo / Image URL
-              <input
-                type="url"
-                value={edit.logoUrl}
-                onChange={(e) => setEdit({ ...edit, logoUrl: e.target.value })}
-                placeholder="https://images.example.com/project-thumb.jpg"
-              />
-            </label>
+            <ImageUploader
+              label="Project Logo (Optional)"
+              currentUrl={edit.logoUrl}
+              folder="Project Logos"
+              onUploadSuccess={(res) => setEdit({ ...edit, logoUrl: res.url })}
+              onRemove={() => setEdit({ ...edit, logoUrl: '' })}
+              helperText="Uploads directly to Google Drive 'Project Logos' folder"
+            />
+            <ImageUploader
+              label="Cover Image (Optional)"
+              currentUrl={edit.coverImageUrl}
+              folder="Project Images"
+              onUploadSuccess={(res) => setEdit({ ...edit, coverImageUrl: res.url })}
+              onRemove={() => setEdit({ ...edit, coverImageUrl: '' })}
+              helperText="Hero / banner image for the project"
+            />
+          </div>
+
+          {/* PROJECT GALLERY MULTI-IMAGE UPLOADER */}
+          <div className="gallery-manager-wrap glass-panel" style={{ padding: 14, marginBottom: 14, borderRadius: 8 }}>
+            <span className="uploader-label" style={{ display: 'block', marginBottom: 6 }}>
+              Multiple Gallery Images ({edit.gallery.length} uploaded)
+            </span>
+            <ImageUploader
+              label="Add Image to Gallery"
+              folder="Project Images"
+              onUploadSuccess={(res) => handleAddGalleryImage(res.url)}
+              helperText="Upload screenshots, mockups, and UI assets into the project gallery"
+            />
+            {edit.gallery.length > 0 && (
+              <div className="gallery-strip">
+                {edit.gallery.map((gUrl, idx) => (
+                  <div key={idx} className="gallery-thumb-wrap">
+                    <img src={gUrl} alt={`Gallery item ${idx + 1}`} />
+                    <button
+                      type="button"
+                      className="gallery-remove-btn"
+                      onClick={() => handleRemoveGalleryImage(idx)}
+                      title="Remove from gallery"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="form-grid-2">
             <label>
               Live Project / Demo Link
               <input
@@ -259,11 +327,6 @@ export function ProjectsManager() {
                 placeholder="https://project.example.com"
               />
             </label>
-          </div>
-
-          <ImagePreview url={edit.logoUrl} alt="Project logo preview" />
-
-          <div className="form-grid-2">
             <label>
               GitHub Repository Link (Optional)
               <input
@@ -273,12 +336,24 @@ export function ProjectsManager() {
                 placeholder="https://github.com/crezonices/repo"
               />
             </label>
+          </div>
+
+          <div className="form-grid-2">
             <label>
-              Technologies (Comma-separated)
+              Technologies & Tools (Comma-separated)
               <input
                 value={edit.technologies}
                 onChange={(e) => setEdit({ ...edit, technologies: e.target.value })}
-                placeholder="React, TypeScript, Three.js, IoT"
+                placeholder="React, TypeScript, Three.js, IoT, Node.js"
+              />
+            </label>
+            <label>
+              Completion Date (Optional)
+              <input
+                type="text"
+                value={edit.completionDate}
+                onChange={(e) => setEdit({ ...edit, completionDate: e.target.value })}
+                placeholder="e.g. Q4 2026 or November 2026"
               />
             </label>
           </div>
@@ -334,6 +409,7 @@ export function ProjectsManager() {
                 <span className="record-meta">
                   Category: <strong>{item.category}</strong> · Order: {item.displayOrder} ·{' '}
                   {item.featured ? 'Featured on Home' : 'Standard'}
+                  {item.gallery && item.gallery.length > 0 && ` · Gallery: ${item.gallery.length} imgs`}
                 </span>
                 <p className="record-desc-preview">{item.shortDescription}</p>
               </div>
@@ -360,10 +436,12 @@ export function ProjectsManager() {
                     ...item,
                     logoUrl: item.logoUrl || item.imageUrl || '',
                     coverImageUrl: item.coverImageUrl || '',
+                    gallery: item.gallery || [],
+                    completionDate: item.completionDate || '',
                     technologies: item.technologies?.join(', ') || '',
                   })
                 }
-                title="Edit project"
+                title="Edit project (Admin 1 Action)"
               >
                 <Edit3 size={15} />
               </button>
@@ -539,27 +617,35 @@ export function TeamManager() {
           </div>
 
           <div className="form-grid-2">
-            <label>
-              Profile Image URL (Direct HTTPS)
-              <input
-                type="url"
-                value={edit.imageUrl}
-                onChange={(e) => setEdit({ ...edit, imageUrl: e.target.value })}
-                placeholder="https://example.com/portrait.jpg"
-              />
-            </label>
-            <label>
-              LinkedIn Profile URL
-              <input
-                type="url"
-                value={edit.linkedin}
-                onChange={(e) => setEdit({ ...edit, linkedin: e.target.value })}
-                placeholder="https://linkedin.com/in/director"
-              />
-            </label>
+            <ImageUploader
+              label="Director / Team Profile Image"
+              currentUrl={edit.imageUrl}
+              folder="Directors & Team"
+              onUploadSuccess={(res) => setEdit({ ...edit, imageUrl: res.url })}
+              onRemove={() => setEdit({ ...edit, imageUrl: '' })}
+              helperText="Uploads directly to Google Drive 'Directors & Team' folder"
+            />
+            <div>
+              <label>
+                LinkedIn Profile URL
+                <input
+                  type="url"
+                  value={edit.linkedin}
+                  onChange={(e) => setEdit({ ...edit, linkedin: e.target.value })}
+                  placeholder="https://linkedin.com/in/director"
+                />
+              </label>
+              <label style={{ marginTop: 12 }}>
+                GitHub Profile URL (Optional)
+                <input
+                  type="url"
+                  value={edit.github}
+                  onChange={(e) => setEdit({ ...edit, github: e.target.value })}
+                  placeholder="https://github.com/director"
+                />
+              </label>
+            </div>
           </div>
-
-          <ImagePreview url={edit.imageUrl} alt="Profile photo preview" />
 
           <label>
             Short Bio (Summary)
@@ -691,7 +777,14 @@ export function TeamManager() {
 const blankService = {
   title: '',
   description: '',
+  detailedDescription: '',
+  imageUrl: '',
+  icon: 'Layers',
   features: '',
+  technologies: '',
+  startingPrice: '',
+  ctaLabel: 'Enquire About Capability',
+  ctaUrl: '/contact',
   displayOrder: 1,
   active: true,
 };
@@ -720,7 +813,7 @@ export function ServicesManager() {
     if (!edit || !user) return;
 
     if (!edit.title.trim() || !edit.description.trim()) {
-      setNotice({ type: 'error', message: 'Service title and description are required.' });
+      setNotice({ type: 'error', message: 'Service title and short description are required.' });
       return;
     }
 
@@ -732,6 +825,8 @@ export function ServicesManager() {
           ...edit,
           slug: edit.title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
           features: edit.features.split(',').map((x) => x.trim()).filter(Boolean),
+          technologies: edit.technologies ? edit.technologies.split(',').map((x) => x.trim()).filter(Boolean) : [],
+          isPublished: edit.active,
         },
         user.uid,
         user.email || '',
@@ -780,36 +875,92 @@ export function ServicesManager() {
             </button>
           </div>
 
-          <label>
-            Service Title *
-            <input
-              required
-              value={edit.title}
-              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-              placeholder="e.g. Next-Gen Web Development"
-            />
-          </label>
+          <div className="form-grid-2">
+            <label>
+              Service Title *
+              <input
+                required
+                value={edit.title}
+                onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                placeholder="e.g. Next-Gen Web Development"
+              />
+            </label>
+            <label>
+              Icon Indicator (Optional)
+              <input
+                value={edit.icon}
+                onChange={(e) => setEdit({ ...edit, icon: e.target.value })}
+                placeholder="Globe, Shield, Brain, Layers, Cpu, Server"
+              />
+            </label>
+          </div>
 
           <label>
-            Description *
+            Short Description * (Displayed on service overview cards)
             <textarea
               required
-              rows={3}
+              rows={2}
               value={edit.description}
               onChange={(e) => setEdit({ ...edit, description: e.target.value })}
-              placeholder="Comprehensive summary of what Crezonices delivers in this domain..."
+              placeholder="Concise summary of what Crezonices delivers in this domain..."
             />
           </label>
 
           <label>
-            Key Capabilities & Features (Comma-separated)
+            Detailed Architecture Description (Optional)
+            <textarea
+              rows={4}
+              value={edit.detailedDescription}
+              onChange={(e) => setEdit({ ...edit, detailedDescription: e.target.value })}
+              placeholder="Comprehensive architectural deep dive for this service capability..."
+            />
+          </label>
+
+          <ImageUploader
+            label="Service Illustration / Showcase Image (Optional)"
+            currentUrl={edit.imageUrl}
+            folder="Service Images"
+            onUploadSuccess={(res) => setEdit({ ...edit, imageUrl: res.url })}
+            onRemove={() => setEdit({ ...edit, imageUrl: '' })}
+            helperText="Uploads directly to Google Drive 'Service Images' folder"
+          />
+
+          <label>
+            Key Capabilities & Features (Comma-separated deliverables)
             <textarea
               rows={2}
               value={edit.features}
               onChange={(e) => setEdit({ ...edit, features: e.target.value })}
-              placeholder="Architecture Consulting, 3D Web Systems, Zero-Trust Hardening"
+              placeholder="Architecture Consulting, 3D Web Systems, Zero-Trust Hardening, CI/CD Automation"
             />
           </label>
+
+          <div className="form-grid-3">
+            <label>
+              Technologies & Stacks
+              <input
+                value={edit.technologies}
+                onChange={(e) => setEdit({ ...edit, technologies: e.target.value })}
+                placeholder="React, Three.js, Docker"
+              />
+            </label>
+            <label>
+              Starting Price / Engagement (Optional)
+              <input
+                value={edit.startingPrice}
+                onChange={(e) => setEdit({ ...edit, startingPrice: e.target.value })}
+                placeholder="e.g. Custom Scope or $5,000+"
+              />
+            </label>
+            <label>
+              Call To Action Label
+              <input
+                value={edit.ctaLabel}
+                onChange={(e) => setEdit({ ...edit, ctaLabel: e.target.value })}
+                placeholder="Enquire About Capability"
+              />
+            </label>
+          </div>
 
           <div className="form-row-checkboxes">
             <label className="checkbox-wrap">
@@ -850,6 +1001,10 @@ export function ServicesManager() {
               </span>
               <div className="record-info">
                 <h3>{item.title}</h3>
+                <span className="record-meta">
+                  Order: {item.displayOrder} · {item.features?.length || 0} Deliverables
+                  {item.startingPrice && ` · From: ${item.startingPrice}`}
+                </span>
                 <p className="record-desc-preview">{item.description}</p>
               </div>
             </div>
@@ -863,8 +1018,16 @@ export function ServicesManager() {
                     ...blankService,
                     ...item,
                     features: item.features?.join(', ') || '',
+                    technologies: item.technologies?.join(', ') || '',
+                    detailedDescription: item.detailedDescription || '',
+                    imageUrl: item.imageUrl || item.image || '',
+                    icon: item.icon || 'Layers',
+                    startingPrice: item.startingPrice || '',
+                    ctaLabel: item.ctaLabel || 'Enquire About Capability',
+                    ctaUrl: item.ctaUrl || '/contact',
                   })
                 }
+                title="Edit service (Admin 1 Action)"
               >
                 <Edit3 size={15} />
               </button>
@@ -877,6 +1040,7 @@ export function ServicesManager() {
                     refresh();
                   }
                 }}
+                title="Delete service"
               >
                 <Trash2 size={15} />
               </button>
@@ -896,9 +1060,14 @@ const blankReview = {
   reviewerName: '',
   reviewerDesignation: '',
   company: '',
+  companyLogo: '',
+  productImage: '',
   reviewText: '',
   rating: 5,
   imageUrl: '',
+  relatedProject: '',
+  testimonialDate: '',
+  featured: false,
   displayOrder: 1,
   isPublished: true,
 };
@@ -932,11 +1101,7 @@ export function ReviewsManager() {
     if (!edit || !user) return;
 
     if (!edit.reviewerName.trim() || !edit.reviewText.trim()) {
-      setNotice({ type: 'error', message: 'Reviewer name and review text are required.' });
-      return;
-    }
-    if (edit.imageUrl && !urlIsSafe(edit.imageUrl)) {
-      setNotice({ type: 'error', message: 'Avatar image URL must use HTTPS.' });
+      setNotice({ type: 'error', message: 'Customer name and testimonial text are required.' });
       return;
     }
 
@@ -946,6 +1111,8 @@ export function ReviewsManager() {
         edit.id,
         {
           ...edit,
+          customerName: edit.reviewerName,
+          testimonialText: edit.reviewText,
           published: edit.isPublished,
         },
         user.uid,
@@ -1061,7 +1228,7 @@ export function ReviewsManager() {
 
           <div className="form-grid-2">
             <label>
-              Reviewer Full Name *
+              Customer / Reviewer Name *
               <input
                 required
                 value={edit.reviewerName}
@@ -1070,7 +1237,7 @@ export function ReviewsManager() {
               />
             </label>
             <label>
-              Professional Designation & Role
+              Professional Designation & Role (Optional)
               <input
                 value={edit.reviewerDesignation}
                 onChange={(e) => setEdit({ ...edit, reviewerDesignation: e.target.value })}
@@ -1081,7 +1248,7 @@ export function ReviewsManager() {
 
           <div className="form-grid-2">
             <label>
-              Organization / Company
+              Company / Organization Name (Optional)
               <input
                 value={edit.company}
                 onChange={(e) => setEdit({ ...edit, company: e.target.value })}
@@ -1089,7 +1256,7 @@ export function ReviewsManager() {
               />
             </label>
             <label>
-              Star Rating (1 – 5)
+              Star Rating (1 – 5 Stars)
               <select
                 value={edit.rating}
                 onChange={(e) => setEdit({ ...edit, rating: Number(e.target.value) })}
@@ -1104,50 +1271,90 @@ export function ReviewsManager() {
           </div>
 
           <label>
-            Review Narrative *
+            Testimonial Text *
             <textarea
               required
               rows={4}
               value={edit.reviewText}
               onChange={(e) => setEdit({ ...edit, reviewText: e.target.value })}
-              placeholder="Enter client testimonial or endorsement narrative..."
+              placeholder="Enter verified client testimonial or project endorsement..."
             />
           </label>
 
+          {/* GOOGLE DRIVE IMAGE UPLOADERS FOR TESTIMONIAL */}
+          <div className="form-grid-3">
+            <ImageUploader
+              label="Customer Profile Photo"
+              currentUrl={edit.imageUrl}
+              folder="Testimonials"
+              onUploadSuccess={(res) => setEdit({ ...edit, imageUrl: res.url })}
+              onRemove={() => setEdit({ ...edit, imageUrl: '' })}
+              helperText="Uploads to 'Testimonials' folder"
+            />
+            <ImageUploader
+              label="Company Logo (Optional)"
+              currentUrl={edit.companyLogo}
+              folder="Project Logos"
+              onUploadSuccess={(res) => setEdit({ ...edit, companyLogo: res.url })}
+              onRemove={() => setEdit({ ...edit, companyLogo: '' })}
+              helperText="Uploads to 'Project Logos' folder"
+            />
+            <ImageUploader
+              label="Product Image (Optional)"
+              currentUrl={edit.productImage}
+              folder="Product Images"
+              onUploadSuccess={(res) => setEdit({ ...edit, productImage: res.url })}
+              onRemove={() => setEdit({ ...edit, productImage: '' })}
+              helperText="Uploads to 'Product Images' folder"
+            />
+          </div>
+
           <div className="form-grid-2">
-            <div>
-              <label>
-                Avatar / Profile Image URL (Optional)
-                <input
-                  type="url"
-                  value={edit.imageUrl}
-                  onChange={(e) => setEdit({ ...edit, imageUrl: e.target.value })}
-                  placeholder="https://..."
-                />
-              </label>
-              <ImagePreview url={edit.imageUrl} alt="Reviewer Avatar" />
-            </div>
-            <div className="order-input-wrap">
-              <label>
-                Display Order
-                <input
-                  type="number"
-                  min={1}
-                  value={edit.displayOrder}
-                  onChange={(e) => setEdit({ ...edit, displayOrder: Number(e.target.value) || 1 })}
-                />
-              </label>
-              <div className="form-row-checkboxes" style={{ marginTop: 20 }}>
-                <label className="checkbox-wrap">
-                  <input
-                    type="checkbox"
-                    checked={edit.isPublished}
-                    onChange={(e) => setEdit({ ...edit, isPublished: e.target.checked })}
-                  />
-                  <span>Publish to live public website</span>
-                </label>
-              </div>
-            </div>
+            <label>
+              Related Project / Engagement (Optional)
+              <input
+                value={edit.relatedProject}
+                onChange={(e) => setEdit({ ...edit, relatedProject: e.target.value })}
+                placeholder="e.g. Connected Operations Suite"
+              />
+            </label>
+            <label>
+              Testimonial Date (Optional)
+              <input
+                type="text"
+                value={edit.testimonialDate}
+                onChange={(e) => setEdit({ ...edit, testimonialDate: e.target.value })}
+                placeholder="e.g. October 2026"
+              />
+            </label>
+          </div>
+
+          <div className="form-row-checkboxes">
+            <label className="checkbox-wrap">
+              <input
+                type="checkbox"
+                checked={edit.isPublished}
+                onChange={(e) => setEdit({ ...edit, isPublished: e.target.checked })}
+              />
+              <span>Published publicly on website</span>
+            </label>
+            <label className="checkbox-wrap">
+              <input
+                type="checkbox"
+                checked={edit.featured}
+                onChange={(e) => setEdit({ ...edit, featured: e.target.checked })}
+              />
+              <span>Mark as Featured testimonial</span>
+            </label>
+            <label className="order-input-wrap">
+              <span>Display Order:</span>
+              <input
+                type="number"
+                min={1}
+                value={edit.displayOrder}
+                onChange={(e) => setEdit({ ...edit, displayOrder: Number(e.target.value) || 1 })}
+              />
+            </label>
           </div>
 
           <div className="editor-actions">
@@ -1191,6 +1398,11 @@ export function ReviewsManager() {
                     <span className={`status-pill ${isPub ? 'published' : 'draft'}`}>
                       {isPub ? 'Published' : 'Draft'}
                     </span>
+                    {item.featured && (
+                      <span className="folder-pill" style={{ borderColor: 'var(--color-amber)', color: 'var(--color-amber)' }}>
+                        Featured
+                      </span>
+                    )}
                     <span style={{ color: 'var(--color-amber)', fontSize: 12 }}>
                       {'★'.repeat(item.rating || 5)}{'☆'.repeat(5 - (item.rating || 5))}
                     </span>
@@ -1198,6 +1410,7 @@ export function ReviewsManager() {
                   <div className="record-meta">
                     {item.reviewerDesignation && <span>{item.reviewerDesignation}</span>}
                     {item.company && <span>· {item.company}</span>}
+                    {item.relatedProject && <span>· Project: {item.relatedProject}</span>}
                     <span>· Order #{item.displayOrder || 1}</span>
                   </div>
                   <p className="record-desc-preview" title={item.reviewText}>
@@ -1225,14 +1438,19 @@ export function ReviewsManager() {
                       reviewerName: item.reviewerName,
                       reviewerDesignation: item.reviewerDesignation || item.designation || '',
                       company: item.company || item.organization || '',
+                      companyLogo: item.companyLogo || '',
+                      productImage: item.productImage || '',
                       reviewText: item.reviewText,
                       rating: item.rating || 5,
                       imageUrl: item.imageUrl || item.image || '',
+                      relatedProject: item.relatedProject || '',
+                      testimonialDate: item.testimonialDate || '',
+                      featured: item.featured || false,
                       displayOrder: item.displayOrder || 1,
                       isPublished: isPub,
                     })
                   }
-                  title="Edit testimonial"
+                  title="Edit testimonial (Admin 1 Action)"
                 >
                   <Edit3 size={15} />
                 </button>
@@ -1587,9 +1805,14 @@ export function ContactInfoManager() {
   const [info, setInfo] = useState({
     email: 'crezonices@gmail.com',
     phone: '',
+    whatsapp: '',
     address: 'Bengaluru, India',
     officeHours: 'Monday – Friday, 9:00 AM – 6:00 PM IST',
     responseTime: '< 24 Hours Response Guarantee',
+    mapUrl: '',
+    contactHeading: 'Direct Communications & Inquiries',
+    contactDescription: 'Whether you have an inquiry regarding a new technology venture, web system, or research partnership, our engineers and directorship are ready to listen.',
+    supportingContactText: 'Connect with our operational desk for immediate consultations, technical proposals, or strategic dialogues.',
   });
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -1604,7 +1827,7 @@ export function ContactInfoManager() {
     if (!user) return;
     try {
       await saveAdminRecord('siteSettings', 'contact', info, user.uid, user.email || '', 'Contact Information');
-      setNotice('Contact details updated successfully.');
+      setNotice('Contact details and page editorial updated successfully.');
     } catch {
       setNotice('Failed to update contact info.');
     }
@@ -1615,15 +1838,16 @@ export function ContactInfoManager() {
       <div className="admin-page-header">
         <div>
           <span className="eyebrow">Corporate Channels</span>
-          <h1>Contact Information</h1>
-          <p>Update official public email addresses, phone contacts, and operating guarantees.</p>
+          <h1>Contact Information & Inquiries CMS</h1>
+          <p>Update official public email addresses, phone contacts, WhatsApp channels, and public page editorial.</p>
         </div>
       </div>
 
       {notice && <div className="admin-alert success"><span>{notice}</span></div>}
 
       <form className="admin-editor glass-panel" onSubmit={handleSave}>
-        <div className="form-grid-2">
+        <h2>Direct Communication Gateways</h2>
+        <div className="form-grid-3">
           <label>
             Official Company Email *
             <input
@@ -1634,29 +1858,87 @@ export function ContactInfoManager() {
             />
           </label>
           <label>
+            Contact Phone Number (Optional)
+            <input
+              type="tel"
+              value={info.phone}
+              onChange={(e) => setInfo({ ...info, phone: e.target.value })}
+              placeholder="+91 ..."
+            />
+          </label>
+          <label>
+            WhatsApp Communications Number (Optional)
+            <input
+              type="tel"
+              value={info.whatsapp}
+              onChange={(e) => setInfo({ ...info, whatsapp: e.target.value })}
+              placeholder="+91 ... (with country code)"
+            />
+          </label>
+        </div>
+
+        <div className="form-grid-3">
+          <label>
             Response Time Guarantee
             <input
               value={info.responseTime}
               onChange={(e) => setInfo({ ...info, responseTime: e.target.value })}
             />
           </label>
-        </div>
-        <div className="form-grid-2">
           <label>
-            Office Hours
+            Operational Business Hours
             <input
               value={info.officeHours}
               onChange={(e) => setInfo({ ...info, officeHours: e.target.value })}
             />
           </label>
           <label>
-            Headquarters / Operational Location
+            Operational Headquarters / Location
             <input
               value={info.address}
               onChange={(e) => setInfo({ ...info, address: e.target.value })}
             />
           </label>
         </div>
+
+        <label>
+          Interactive Map / Location Embed URL (Optional)
+          <input
+            type="url"
+            value={info.mapUrl}
+            onChange={(e) => setInfo({ ...info, mapUrl: e.target.value })}
+            placeholder="https://maps.google.com/..."
+          />
+        </label>
+
+        <h2 style={{ marginTop: 24 }}>Contact Page Editorial Copy</h2>
+        <label>
+          Contact Page Main Heading
+          <input
+            value={info.contactHeading}
+            onChange={(e) => setInfo({ ...info, contactHeading: e.target.value })}
+            placeholder="Direct Communications & Inquiries"
+          />
+        </label>
+        <label>
+          Contact Page Subtitle / Description
+          <textarea
+            rows={2}
+            value={info.contactDescription}
+            onChange={(e) => setInfo({ ...info, contactDescription: e.target.value })}
+            placeholder="Whether you have an inquiry regarding a new technology venture..."
+          />
+        </label>
+        <label>
+          Supporting Contact Text (Inside Direct Channels card)
+          <textarea
+            rows={2}
+            value={info.supportingContactText}
+            onChange={(e) => setInfo({ ...info, supportingContactText: e.target.value })}
+            placeholder="Connect with our operational desk for immediate consultations..."
+          />
+        </label>
+
         <div className="editor-actions">
           <button type="submit" className="button small">
             <Save size={14} /> Update Contact Info
@@ -1753,11 +2035,56 @@ export function WebsiteSettingsManager() {
   });
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Google Drive integration status
+  const [driveStatus, setDriveStatus] = useState<{
+    connected: boolean;
+    account: string;
+    mainFolderId: string;
+    mainFolderName: string;
+    folderAccessible: boolean;
+    subfolders: string[];
+    configuredSubfolders: string[];
+    clientIdConfigured: boolean;
+    redirectUri: string;
+    error?: string;
+  } | null>(null);
+  const [checkingDrive, setCheckingDrive] = useState(false);
+
+  const checkDrive = async () => {
+    setCheckingDrive(true);
+    try {
+      const res = await fetch(getApiUrl('/api/auth/google/status'));
+      if (res.ok) {
+        const data = await res.json();
+        setDriveStatus(data);
+      }
+    } catch {
+      // Backend offline or local fallback
+    } finally {
+      setCheckingDrive(false);
+    }
+  };
+
   useEffect(() => {
     getAdminRecord<typeof settings>('siteSettings', 'general').then((res) => {
       if (res) setSettings((prev) => ({ ...prev, ...res }));
     });
+    checkDrive();
   }, []);
+
+  const handleConnectDrive = async () => {
+    try {
+      const res = await fetch(getApiUrl('/api/auth/google/url'));
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || 'Google OAuth credentials or Redirect URI not configured in backend yet.');
+      }
+    } catch (err: any) {
+      alert(`Could not connect to backend OAuth endpoint: ${err.message}`);
+    }
+  };
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -1775,14 +2102,102 @@ export function WebsiteSettingsManager() {
       <div className="admin-page-header">
         <div>
           <span className="eyebrow">System Configuration</span>
-          <h1>Website Settings</h1>
-          <p>Global site-wide configuration, metadata, and appearance controls.</p>
+          <h1>Website Settings & Cloud Integrations</h1>
+          <p>Global site-wide configuration, metadata, and Google Drive cloud asset storage.</p>
         </div>
       </div>
 
       {notice && <div className="admin-alert success"><span>{notice}</span></div>}
 
+      {/* GOOGLE DRIVE STORAGE INTEGRATION CARD */}
+      <div className="glass-panel" style={{ padding: 24, marginBottom: 24, borderRadius: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <div>
+            <span className="eyebrow">Image Storage Provider</span>
+            <h2 style={{ margin: 0, fontSize: 18 }}>Google Drive Assets Engine</h2>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <span
+              className={`status-pill ${driveStatus?.connected ? 'published' : 'draft'}`}
+              style={{ padding: '6px 14px', fontSize: 12 }}
+            >
+              {driveStatus?.connected ? 'Drive Connected & Verified' : 'OAuth Authorization Required'}
+            </span>
+            <button
+              type="button"
+              className="button small ghost"
+              onClick={checkDrive}
+              disabled={checkingDrive}
+              title="Refresh Google Drive status"
+            >
+              <RefreshCw size={13} className={checkingDrive ? 'spin' : ''} /> Check Status
+            </button>
+          </div>
+        </div>
+
+        <div className="form-grid-2" style={{ marginBottom: 16 }}>
+          <div style={{ background: 'rgba(0,0,0,0.3)', padding: 14, borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Target Google Account:</span>
+            <strong style={{ color: '#38bdf8' }}>crezonices@gmail.com</strong>
+          </div>
+          <div style={{ background: 'rgba(0,0,0,0.3)', padding: 14, borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Primary Drive Folder:</span>
+            <strong style={{ color: '#38bdf8' }}>CREZONICES_WEBSITE_ASSETS</strong>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>(ID: 1ryzD2gXWu5xW4qybIGePyZAu0iL_Etbw)</span>
+          </div>
+        </div>
+
+        <div style={{ background: 'rgba(0,0,0,0.2)', padding: 16, borderRadius: 8, border: '1px solid var(--border-subtle)', marginBottom: 16 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 8 }}>
+            Configured Dedicated Subfolders:
+          </span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {[
+              'Project Logos',
+              'Project Images',
+              'Testimonials',
+              'Product Images',
+              'Directors & Team',
+              'Service Images',
+              'Other Website Images',
+            ].map((sf) => (
+              <span key={sf} className="folder-pill">
+                <CheckCircle2 size={12} /> {sf}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          {!driveStatus?.connected ? (
+            <button
+              type="button"
+              className="button small"
+              onClick={handleConnectDrive}
+            >
+              Authorize crezonices@gmail.com with Google Drive
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="button small ghost"
+              onClick={handleConnectDrive}
+            >
+              Re-authorize Google Account
+            </button>
+          )}
+
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            OAuth Redirect URI:{' '}
+            <code style={{ color: driveStatus?.redirectUri ? '#38bdf8' : '#f87171' }}>
+              {driveStatus?.redirectUri || 'Not Configured (Requires HTTPS callback URL in production)'}
+            </code>
+          </span>
+        </div>
+      </div>
+
       <form className="admin-editor glass-panel" onSubmit={handleSave}>
+        <h2>Website Global Metadata & SEO</h2>
         <label>
           Global Website Title
           <input

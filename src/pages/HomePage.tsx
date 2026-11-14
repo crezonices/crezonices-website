@@ -1,9 +1,11 @@
 import { lazy, Suspense } from 'react';
 import { motion } from 'motion/react';
+import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   ArrowUpRight,
   Cpu,
+  Edit3,
   Layers,
   Network,
   ShieldCheck,
@@ -15,7 +17,8 @@ import { ProjectCard } from '../components/common/ProjectCard';
 import { SectionHeading } from '../components/common/SectionHeading';
 import { TechnologyCard } from '../components/common/TechnologyCard';
 import { domains } from '../data/content';
-import { usePageContent, useProjects, useServices, useTeam } from '../features/content/usePublicContent';
+import { usePageContent, useProjects, useReviews, useServices, useTeam } from '../features/content/usePublicContent';
+import { useAuth } from '../contexts/AuthContext';
 
 const ShieldSentinelHeroV3 = lazy(() =>
   import('../components/three/ShieldSentinelHeroV3').then((m) => ({ default: m.ShieldSentinelHeroV3 }))
@@ -36,6 +39,8 @@ export function HomePage() {
   const { data: projects } = useProjects();
   const { data: founders } = useTeam();
   const { data: services } = useServices();
+  const { data: reviews } = useReviews();
+  const { user } = useAuth();
 
   return (
     <main>
@@ -339,6 +344,69 @@ export function HomePage() {
           </Button>
         </div>
       </section>
+
+      {/* 9.5. VERIFIED CLIENT TESTIMONIALS */}
+      {reviews && reviews.length > 0 && (
+        <section className="section testimonials-section">
+          <SectionHeading
+            eyebrow="Reputation & Verified Endorsements"
+            title="What partners and clients say about Crezonices."
+            copy="Authentic endorsements from enterprise clients and technical collaborators who have experienced our engineering craft."
+          />
+          <div className="testimonials-grid">
+            {reviews.map((r) => {
+              const name = r.reviewerName || r.customerName || 'Verified Client';
+              const text = r.reviewText || r.testimonialText;
+              const meta = [r.reviewerDesignation || r.designation, r.company || r.companyName]
+                .filter(Boolean)
+                .join(' · ');
+              return (
+                <article key={r.id} className="testimonial-card glass-panel" style={{ position: 'relative' }}>
+                  {user && (
+                    <Link
+                      to="/admin/reviews"
+                      className="admin-quick-edit-pill"
+                      title="Edit testimonial in Admin Portal"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Edit3 size={11} /> Edit
+                    </Link>
+                  )}
+                  <div className="testimonial-rating">
+                    {'★'.repeat(r.rating || 5)}{'☆'.repeat(5 - (r.rating || 5))}
+                  </div>
+                  <p className="testimonial-quote">"{text}"</p>
+                  <div className="testimonial-author">
+                    {r.imageUrl ? (
+                      <img src={r.imageUrl} alt={name} className="testimonial-avatar" />
+                    ) : (
+                      <div
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '50%',
+                          background: 'rgba(56, 189, 248, 0.1)',
+                          color: '#38bdf8',
+                          display: 'grid',
+                          placeItems: 'center',
+                          fontSize: 14,
+                          fontWeight: 'bold',
+                        }}
+                      >
+                        {name.charAt(0)}
+                      </div>
+                    )}
+                    <div>
+                      <strong>{name}</strong>
+                      {meta && <span>{meta}</span>}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* 10. CALL TO ACTION */}
       <section className="section service-cta">

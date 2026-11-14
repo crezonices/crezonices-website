@@ -60,7 +60,13 @@ export interface Service {
   slug: string;
   title: string;
   description: string;
+  shortDescription?: string;
+  detailedDescription?: string;
   features: string[];
+  technologies?: string[];
+  startingPrice?: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
   image?: string;
   imageUrl?: string;
   icon?: string;
@@ -74,14 +80,23 @@ export interface Service {
 export interface Review {
   id: string;
   reviewerName: string;
+  customerName?: string;
   designation?: string;
   reviewerDesignation?: string;
   organization?: string;
   company?: string;
+  companyName?: string;
+  companyLogo?: string;
+  productImage?: string;
   reviewText: string;
+  testimonialText?: string;
   image?: string;
   imageUrl?: string;
+  profileImage?: string;
   rating: number;
+  relatedProject?: string;
+  testimonialDate?: string;
+  featured?: boolean;
   published: boolean;
   isPublished?: boolean;
   displayOrder: number;
@@ -125,9 +140,14 @@ export interface SiteSettings {
   companyName: string;
   email: string;
   phone?: string;
+  whatsapp?: string;
   address?: string;
   officeHours?: string;
   responseTime?: string;
+  mapUrl?: string;
+  contactHeading?: string;
+  contactDescription?: string;
+  supportingContactText?: string;
   logoUrl?: string;
   socialLinks: {
     linkedin?: string;
@@ -141,6 +161,35 @@ export interface SiteSettings {
   footerCopyright?: string;
   maintenanceMode?: boolean;
   updatedAt?: any;
+}
+
+export interface ImageReference {
+  provider: 'google-drive' | 'local' | 'external';
+  fileId?: string;
+  url: string;
+  filename?: string;
+  mimeType?: string;
+  size?: number;
+  folder?: string;
+  uploadedAt?: any;
+}
+
+export interface DriveAssetMetadata {
+  fileId: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  folderId: string;
+  folderName: string;
+  servingUrl: string;
+  storageProvider: 'google-drive';
+  uploadedBy?: string;
+  uploadedAt: any;
+  references?: Array<{
+    collection: string;
+    docId: string;
+    field: string;
+  }>;
 }
 
 export interface AdminActivityLog {

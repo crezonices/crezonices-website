@@ -158,9 +158,14 @@ export async function subscribeSiteSettings(
         set({
           email: d.email,
           phone: d.phone,
-          address: d.officeAddress,
+          whatsapp: d.whatsapp,
+          address: d.officeAddress || d.address,
           officeHours: d.officeHours,
-          responseTime: d.responseGuarantee,
+          responseTime: d.responseGuarantee || d.responseTime,
+          mapUrl: d.mapUrl,
+          contactHeading: d.contactHeading,
+          contactDescription: d.contactDescription,
+          supportingContactText: d.supportingContactText,
         });
       }
     });

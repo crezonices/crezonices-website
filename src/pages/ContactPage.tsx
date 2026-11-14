@@ -1,10 +1,13 @@
-import { ArrowRight, Clock, Globe, Mail, MapPin, MessageSquare, Phone, Shield, Sparkles } from 'lucide-react';
+import { ArrowRight, Clock, Edit3, Globe, Mail, MapPin, MessageSquare, Phone, Shield, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { PageHero } from '../components/common/PageHero';
 import { EnquiryForm } from '../components/common/EnquiryForm';
 import { company } from '../config/site';
 import { usePageContent, useSiteSettings } from '../features/content/usePublicContent';
+import { useAuth } from '../contexts/AuthContext';
 
 export function ContactPage() {
+  const { user } = useAuth();
   const settings = useSiteSettings();
   const content = usePageContent('contact', {
     eyebrow: 'Direct Communications & Inquiries',
@@ -15,29 +18,40 @@ export function ContactPage() {
   });
 
   const activeEmail = settings.email || company.email;
+  const activeHeading = settings.contactHeading || content.title || 'Initiate a conversation with the Crezonices team.';
+  const activeDesc = settings.contactDescription || content.description || 'Whether you have an inquiry regarding a new technology venture, web system, or research partnership, our engineers and directorship are ready to listen.';
 
   return (
     <main>
       <PageHero
         kind="contact"
         eyebrow={content.eyebrow || 'Direct Communications & Inquiries'}
-        title={content.title || 'Initiate a conversation with the Crezonices team.'}
-        copy={
-          content.description ||
-          'Whether you have an inquiry regarding a new technology venture, web system, or research partnership, our engineers and directorship are ready to listen.'
-        }
+        title={activeHeading}
+        copy={activeDesc}
         badge={content.badge || 'Signal Active'}
       />
 
-      <section className="section contact-layout">
+      <section className="section contact-layout" style={{ position: 'relative' }}>
+        {/* Admin 1 Quick Edit Shortcut */}
+        {user && (
+          <Link
+            to="/admin/contact-info"
+            className="admin-quick-edit-pill"
+            style={{ top: 0, right: 20 }}
+            title="Edit contact settings in Admin Portal"
+          >
+            <Edit3 size={11} /> Edit Contact Info
+          </Link>
+        )}
+
         {/* Contact Info & Telemetry Column */}
         <div className="contact-info-panel glass-panel">
           <div className="contact-card-top">
             <span className="eyebrow">Communication Gateway</span>
             <h2>Direct Channels</h2>
             <p>
-              Connect with our operational desk for immediate consultations, technical proposals,
-              or strategic dialogues.
+              {settings.supportingContactText ||
+                'Connect with our operational desk for immediate consultations, technical proposals, or strategic dialogues.'}
             </p>
           </div>
 
@@ -61,6 +75,25 @@ export function ContactPage() {
                 <div>
                   <span className="channel-label">Telephone Communications</span>
                   <strong className="channel-address">{settings.phone}</strong>
+                </div>
+                <ArrowRight size={18} className="channel-arrow" />
+              </a>
+            )}
+
+            {settings.whatsapp && (
+              <a
+                href={`https://wa.me/${settings.whatsapp.replace(/[^0-9]/g, '')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="direct-email-card"
+                style={{ marginTop: 12 }}
+              >
+                <div className="channel-icon-wrap">
+                  <MessageSquare size={22} />
+                </div>
+                <div>
+                  <span className="channel-label">Instant WhatsApp Desk</span>
+                  <strong className="channel-address">{settings.whatsapp}</strong>
                 </div>
                 <ArrowRight size={18} className="channel-arrow" />
               </a>
