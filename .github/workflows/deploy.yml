@@ -1,0 +1,60 @@
+name: Crezonices Manual Production Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Deployment Target'
+        required: true
+        default: 'hosting-only'
+        type: choice
+        options:
+          - 'hosting-only'
+          - 'firestore-rules'
+          - 'all'
+      confirm_production:
+        description: 'Type "DEPLOY" to confirm production release'
+        required: true
+        type: string
+
+jobs:
+  deploy-production:
+    name: Production Deployment to crezonices-2026
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/version-3-combined' && github.event.inputs.confirm_production == 'DEPLOY'
+
+    steps:
+      - name: Checkout Production Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Test Suite Verification
+        run: npm test
+
+      - name: Build Production Frontend
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Deploy to Firebase Hosting
+        if: github.event.inputs.target == 'hosting-only' || github.event.inputs.target == 'all'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_CREZONICES_2026 }}'
+          channelId: live
+          projectId: crezonices-2026
+
+      - name: Deploy Firestore Rules
+        if: github.event.inputs.target == 'firestore-rules' || github.event.inputs.target == 'all'
+        run: npx firebase-tools deploy --only firestore:rules --project crezonices-2026 --token "${{ secrets.FIREBASE_TOKEN }}"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
