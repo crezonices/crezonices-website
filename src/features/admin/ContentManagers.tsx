@@ -2054,7 +2054,8 @@ export function WebsiteSettingsManager() {
     setCheckingDrive(true);
     try {
       const res = await fetch(getApiUrl('/api/auth/google/status'));
-      if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
         setDriveStatus(data);
       }
@@ -2075,12 +2076,18 @@ export function WebsiteSettingsManager() {
   const handleConnectDrive = async () => {
     try {
       const res = await fetch(getApiUrl('/api/auth/google/url'));
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        alert(data.error || 'Google OAuth credentials or Redirect URI not configured in backend yet.');
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url;
+          return;
+        } else {
+          alert(data.error || 'Google OAuth credentials or Redirect URI not configured in backend yet.');
+          return;
+        }
       }
+      alert('The backend OAuth endpoint is not reachable on this domain. Ensure the backend server is running.');
     } catch (err: any) {
       alert(`Could not connect to backend OAuth endpoint: ${err.message}`);
     }

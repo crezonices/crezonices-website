@@ -59,7 +59,8 @@ export function EnquiryForm({ mode }: { mode: Mode }) {
             message: description,
           }),
         });
-        if (res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
           const result = await res.json();
           backendSuccess = true;
           setStatusMessage({

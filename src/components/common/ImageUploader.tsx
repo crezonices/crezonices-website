@@ -247,9 +247,28 @@ export function ImageUploader({
 
       setProgress(90);
 
+      const contentType = response.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || data.error || `Upload failed (Status ${response.status})`);
+        let errorMessage = `Upload failed (Status ${response.status})`;
+        if (isJson) {
+          const data = await response.json().catch(() => ({}));
+          errorMessage = data.message || data.error || errorMessage;
+        } else {
+          const text = await response.text().catch(() => '');
+          if (text.includes('<!doctype') || text.includes('<!DOCTYPE') || text.includes('<html')) {
+            errorMessage =
+              'Backend service returned a web page (HTML) instead of JSON. The backend server (/api/drive/upload) is either not deployed on this domain or offline. You can use "Direct URL" above to insert your image.';
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (!isJson) {
+        throw new Error(
+          'Backend endpoint returned HTML instead of JSON. The backend server is not reachable on this domain. Please ensure the backend is running, or switch to "Direct URL" mode above.'
+        );
       }
 
       const result = await response.json();
@@ -268,7 +287,7 @@ export function ImageUploader({
       const msg = err.message || 'Network error during Google Drive upload.';
       setError(
         msg.includes('Failed to fetch') || msg.includes('404')
-          ? 'Google Drive backend endpoint /api/drive/upload is connecting. You can also specify a direct URL below.'
+          ? 'Google Drive backend endpoint /api/drive/upload is not reachable on this domain. You can also specify a direct URL using the "Direct URL" tab above.'
           : msg
       );
     } finally {

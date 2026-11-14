@@ -903,6 +903,18 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// Explicit JSON error handler for all API routes (ensures backend NEVER returns HTML to API callers)
+app.use('/api', (err, req, res, next) => {
+  console.error('[Crezonices Backend API Error]:', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(err.status || 500).json({
+    error: err.message || 'An internal backend server error occurred.',
+    code: err.code || 'BACKEND_ERROR',
+  });
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`[Crezonices Backend] Server listening on port ${PORT} (NODE_ENV: ${IS_PRODUCTION ? 'production' : 'development'})`);
