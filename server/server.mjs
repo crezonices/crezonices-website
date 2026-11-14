@@ -82,18 +82,99 @@ const REDIRECT_URI = GOOGLE_REDIRECT_URI;
 // 2. FIREBASE ADMIN SDK INITIALIZATION
 // ============================================================================
 
+/**
+ * Safely parses Firebase Service Account credentials from diverse environment formats:
+ * - Direct JSON object string
+ * - Single-quoted or double-quoted JSON string
+ * - Base64-encoded JSON string
+ * - File path (e.g. Render Secret File mounted at /etc/secrets/...)
+ * - Escaped newline JSON string
+ *
+ * Never throws and never prints sensitive key contents.
+ */
+export function parseServiceAccountKey(rawInput) {
+  if (!rawInput || typeof rawInput !== 'string') {
+    return null;
+  }
+
+  let input = rawInput.trim();
+  if (!input) return null;
+
+  function validateAndNormalize(rawObj) {
+    if (!rawObj) return null;
+    let parsed = rawObj;
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed.trim());
+      } catch {
+        return null;
+      }
+    }
+    if (parsed && typeof parsed === 'object' && parsed.project_id && parsed.private_key) {
+      if (typeof parsed.private_key === 'string' && parsed.private_key.includes('\\n')) {
+        parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+      }
+      return parsed;
+    }
+    return null;
+  }
+
+  // 1. Try parsing directly as JSON (handles raw JSON and double-stringified JSON)
+  try {
+    const parsed = validateAndNormalize(JSON.parse(input));
+    if (parsed) return parsed;
+  } catch {}
+
+  // 2. If wrapped in single quotes, strip them and parse
+  if (input.startsWith("'") && input.endsWith("'")) {
+    try {
+      const stripped = input.slice(1, -1).trim();
+      const parsed = validateAndNormalize(JSON.parse(stripped));
+      if (parsed) return parsed;
+    } catch {}
+  }
+
+  // 3. Check if it's a file path on disk (e.g. Render Secret File mounted at /etc/secrets/...)
+  try {
+    if (fs.existsSync(input)) {
+      const fileContent = fs.readFileSync(input, 'utf-8').trim();
+      const parsed = validateAndNormalize(JSON.parse(fileContent));
+      if (parsed) return parsed;
+    }
+  } catch {}
+
+  // 4. Try base64 decoding
+  try {
+    const decoded = Buffer.from(input, 'base64').toString('utf-8').trim();
+    if (decoded.startsWith('{') || decoded.startsWith('"')) {
+      const parsed = validateAndNormalize(JSON.parse(decoded));
+      if (parsed) return parsed;
+    }
+  } catch {}
+
+  // 5. Try unescaping escaped newlines/quotes (e.g. if string was escaped for shell/dotenv)
+  try {
+    const unescaped = input.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    if (unescaped.startsWith('{')) {
+      const parsed = validateAndNormalize(JSON.parse(unescaped));
+      if (parsed) return parsed;
+    }
+  } catch {}
+
+  return null;
+}
+
 let adminCredential = null;
 
 // 1. Check for FIREBASE_SERVICE_ACCOUNT_KEY env var (Render / Cloud deployment)
 if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-  try {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim();
-    const saObj = raw.startsWith('{')
-      ? JSON.parse(raw)
-      : JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'));
+  const saObj = parseServiceAccountKey(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+  if (saObj) {
     adminCredential = cert(saObj);
-  } catch (err) {
-    console.warn('[Crezonices Backend] Warning parsing FIREBASE_SERVICE_ACCOUNT_KEY:', err.message);
+  } else {
+    console.warn(
+      '[Crezonices Backend] FIREBASE_SERVICE_ACCOUNT_KEY is present but could not be parsed into a valid service account JSON object. Expected raw JSON or base64 JSON.'
+    );
   }
 }
 
@@ -102,9 +183,11 @@ const localSaPath = path.join(credentialsDir, 'service-account.json');
 if (!adminCredential && fs.existsSync(localSaPath)) {
   try {
     const saObj = JSON.parse(fs.readFileSync(localSaPath, 'utf-8'));
-    adminCredential = cert(saObj);
-  } catch (err) {
-    console.warn('[Crezonices Backend] Warning reading local service-account.json:', err.message);
+    if (saObj && saObj.project_id && saObj.private_key) {
+      adminCredential = cert(saObj);
+    }
+  } catch {
+    console.warn('[Crezonices Backend] Warning reading local service-account.json');
   }
 }
 
@@ -112,7 +195,7 @@ if (!adminCredential && fs.existsSync(localSaPath)) {
 if (!adminCredential) {
   try {
     adminCredential = applicationDefault();
-  } catch (err) {
+  } catch {
     // ADC not available in plain dev environment
   }
 }
@@ -975,10 +1058,12 @@ app.use('/api', (err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`[Crezonices Backend] Server listening on port ${PORT} (NODE_ENV: ${IS_PRODUCTION ? 'production' : 'development'})`);
-  console.log(`[Crezonices Backend] OAuth Redirect URI: ${REDIRECT_URI || '(NOT CONFIGURED - Set GOOGLE_REDIRECT_URI for production)'}`);
-  console.log(`[Crezonices Backend] Google Drive Account: ${GOOGLE_DRIVE_ACCOUNT}`);
-  console.log(`[Crezonices Backend] Google Drive Folder ID: ${MAIN_DRIVE_FOLDER_ID}`);
-});
+// Start server (only if not running under test suite)
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`[Crezonices Backend] Server listening on port ${PORT} (NODE_ENV: ${IS_PRODUCTION ? 'production' : 'development'})`);
+    console.log(`[Crezonices Backend] OAuth Redirect URI: ${REDIRECT_URI || '(NOT CONFIGURED - Set GOOGLE_REDIRECT_URI for production)'}`);
+    console.log(`[Crezonices Backend] Google Drive Account: ${GOOGLE_DRIVE_ACCOUNT}`);
+    console.log(`[Crezonices Backend] Google Drive Folder ID: ${MAIN_DRIVE_FOLDER_ID}`);
+  });
+}
