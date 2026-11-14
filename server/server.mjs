@@ -223,17 +223,19 @@ function createOAuthClient() {
 }
 
 async function getStoredTokens() {
-  // 1. Check Firestore systemConfig collection
-  try {
-    const snap = await db.collection('systemConfig').doc('googleDriveTokens').get();
-    if (snap.exists) {
-      const data = snap.data();
-      if (data && (data.refresh_token || data.access_token)) {
-        return data;
+  // 1. Check Firestore systemConfig collection (only if Firebase Admin credentials are initialized)
+  if (adminCredential) {
+    try {
+      const snap = await db.collection('systemConfig').doc('googleDriveTokens').get();
+      if (snap.exists) {
+        const data = snap.data();
+        if (data && (data.refresh_token || data.access_token)) {
+          return data;
+        }
       }
+    } catch (err) {
+      // Firestore might be offline or initializing
     }
-  } catch (err) {
-    // Firestore might be offline or initializing
   }
 
   // 2. Check local credentials file (fallback/local dev cache)
@@ -252,11 +254,13 @@ async function saveTokens(tokens) {
   const existing = (await getStoredTokens()) || {};
   const merged = { ...existing, ...tokens, updatedAt: new Date().toISOString() };
 
-  // 1. Persist to Firestore for cloud/serverless persistence
-  try {
-    await db.collection('systemConfig').doc('googleDriveTokens').set(merged, { merge: true });
-  } catch (err) {
-    console.warn('[Crezonices Backend] Failed to write tokens to Firestore:', err.message);
+  // 1. Persist to Firestore for cloud/serverless persistence (only if Firebase Admin credentials are initialized)
+  if (adminCredential) {
+    try {
+      await db.collection('systemConfig').doc('googleDriveTokens').set(merged, { merge: true });
+    } catch (err) {
+      console.warn('[Crezonices Backend] Failed to write tokens to Firestore:', err.message);
+    }
   }
 
   // 2. Persist to local cache file if filesystem is writable
@@ -691,6 +695,7 @@ app.get('/api/auth/google/status', async (req, res) => {
     clientIdConfigured: !!GOOGLE_CLIENT_ID && !!GOOGLE_CLIENT_SECRET,
     redirectUri: REDIRECT_URI || null,
     redirectUriConfigured: Boolean(REDIRECT_URI),
+    firebaseAdminConfigured: !!adminCredential,
     isProduction: IS_PRODUCTION,
     error: testError,
   });
