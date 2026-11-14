@@ -18,62 +18,103 @@ import {
 
 export function useProjects() {
   const [data, setData] = useState<Project[]>(localProjects);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
     let stop = () => {};
-    subscribePublishedProjects((records) => {
-      if (records.length > 0) setData(records);
-    }, setError).then((unsub) => (stop = unsub));
+    subscribePublishedProjects(
+      (records) => {
+        // Successfully received Firestore collection response (even if empty)
+        setData(records);
+        setLoading(false);
+        setIsLive(true);
+      },
+      (err) => {
+        setError(err);
+        setLoading(false);
+      }
+    ).then((unsub) => (stop = unsub));
     return () => stop();
   }, []);
 
-  return { data, error };
+  return { data, loading, error, isLive };
 }
 
 export function useTeam() {
   const [data, setData] = useState<Founder[]>(localFounders);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
     let stop = () => {};
-    subscribePublishedTeam((records) => {
-      if (records.length > 0) setData(records);
-    }, setError).then((unsub) => (stop = unsub));
+    subscribePublishedTeam(
+      (records) => {
+        setData(records);
+        setLoading(false);
+        setIsLive(true);
+      },
+      (err) => {
+        setError(err);
+        setLoading(false);
+      }
+    ).then((unsub) => (stop = unsub));
     return () => stop();
   }, []);
 
-  return { data, error };
+  return { data, loading, error, isLive };
 }
 
 export function useServices() {
   const [data, setData] = useState<Service[]>(localServices);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
     let stop = () => {};
-    subscribePublishedServices((records) => {
-      if (records.length > 0) setData(records);
-    }, setError).then((unsub) => (stop = unsub));
+    subscribePublishedServices(
+      (records) => {
+        setData(records);
+        setLoading(false);
+        setIsLive(true);
+      },
+      (err) => {
+        setError(err);
+        setLoading(false);
+      }
+    ).then((unsub) => (stop = unsub));
     return () => stop();
   }, []);
 
-  return { data, error };
+  return { data, loading, error, isLive };
 }
 
 export function useReviews() {
   const [data, setData] = useState<Review[]>(localReviews);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
     let stop = () => {};
-    subscribePublishedReviews((records) => {
-      setData(records);
-    }, setError).then((unsub) => (stop = unsub));
+    subscribePublishedReviews(
+      (records) => {
+        setData(records);
+        setLoading(false);
+        setIsLive(true);
+      },
+      (err) => {
+        setError(err);
+        setLoading(false);
+      }
+    ).then((unsub) => (stop = unsub));
     return () => stop();
   }, []);
 
-  return { data, error };
+  return { data, loading, error, isLive };
 }
 
 export function usePageContent(pageId: string, fallback?: Partial<PageContent>) {
@@ -82,7 +123,9 @@ export function usePageContent(pageId: string, fallback?: Partial<PageContent>) 
   useEffect(() => {
     let stop = () => {};
     subscribePageContent(pageId, (remote) => {
-      setContent((prev) => ({ ...prev, ...remote }));
+      if (remote) {
+        setContent((prev) => ({ ...prev, ...remote }));
+      }
     }).then((unsub) => (stop = unsub));
     return () => stop();
   }, [pageId]);
@@ -95,17 +138,31 @@ export function useSiteSettings() {
     companyName: company.name,
     email: company.email,
     logoUrl: company.logo,
+    phone: '',
+    address: 'Global Technology Operations, Distributed Engineering Laboratories',
+    officeHours: 'Monday – Friday, 08:00 – 18:00 UTC',
+    responseTime: 'Within 24 business hours',
     socialLinks: {
       linkedin: socialLinks.linkedin || '',
+      github: '',
+      twitter: '',
       instagram: socialLinks.instagram || '',
       youtube: socialLinks.youtube || '',
     },
+    footerCopyright: `© ${new Date().getFullYear()} Crezonices. All rights reserved. Architected for progress.`,
   });
 
   useEffect(() => {
     let stop = () => {};
     subscribeSiteSettings((remote) => {
-      setSettings((prev) => ({ ...prev, ...remote }));
+      setSettings((prev) => ({
+        ...prev,
+        ...remote,
+        socialLinks: {
+          ...prev.socialLinks,
+          ...(remote.socialLinks || {}),
+        },
+      }));
     }).then((unsub) => (stop = unsub));
     return () => stop();
   }, []);

@@ -15,6 +15,7 @@ import {
 import { PageHero } from '../components/common/PageHero';
 import { domains } from '../data/content';
 import { TechnologyCard } from '../components/common/TechnologyCard';
+import { usePageContent } from '../features/content/usePublicContent';
 
 const principles = [
   {
@@ -45,14 +46,25 @@ const principles = [
 ];
 
 export function AboutPage() {
+  const content = usePageContent('about', {
+    eyebrow: 'About Crezonices',
+    title: 'Engineering complex technology ecosystems for a connected world.',
+    description:
+      'Crezonices is an advanced technology development company creating specialized software, artificial intelligence applications, distributed IoT networks, and cybersecurity architectures.',
+    badge: 'Multi-Domain Technology',
+  });
+
   return (
     <main>
       <PageHero
         kind="about"
-        eyebrow="About Crezonices"
-        title="Engineering complex technology ecosystems for a connected world."
-        copy="Crezonices is an advanced technology development company creating specialized software, artificial intelligence applications, distributed IoT networks, and cybersecurity architectures."
-        badge="Multi-Domain Technology"
+        eyebrow={content.eyebrow || 'About Crezonices'}
+        title={content.title || 'Engineering complex technology ecosystems for a connected world.'}
+        copy={
+          content.description ||
+          'Crezonices is an advanced technology development company creating specialized software, artificial intelligence applications, distributed IoT networks, and cybersecurity architectures.'
+        }
+        badge={content.badge || 'Multi-Domain Technology'}
       />
 
       {/* 1. MISSION & VISION EDITORIAL */}

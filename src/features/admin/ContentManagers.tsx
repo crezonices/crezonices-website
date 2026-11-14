@@ -37,6 +37,7 @@ import {
 } from '../content/contentStore';
 import type {
   AdminActivityLog,
+  AdminUser,
   ContactEnquiry,
   EnquiryStatus,
   Founder,
@@ -891,17 +892,34 @@ export function ServicesManager() {
 // 4. REVIEWS & TESTIMONIALS MANAGER
 // ============================================================================
 
+const blankReview = {
+  reviewerName: '',
+  reviewerDesignation: '',
+  company: '',
+  reviewText: '',
+  rating: 5,
+  imageUrl: '',
+  displayOrder: 1,
+  isPublished: true,
+};
+
 export function ReviewsManager() {
   const { user } = useAuth();
   const [items, setItems] = useState<Review[]>([]);
+  const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all');
+  const [edit, setEdit] = useState<(typeof blankReview & { id?: string }) | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const refresh = async () => {
+    setLoading(true);
     try {
-      const records = await listAdminRecords<Review>('reviews');
+      const records = await listAdminRecords<Review>('reviews', 'displayOrder');
       setItems(records);
     } catch {
-      setNotice({ type: 'error', message: 'Could not load reviews.' });
+      setNotice({ type: 'error', message: 'Could not load client testimonials from Firestore.' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -909,32 +927,338 @@ export function ReviewsManager() {
     refresh();
   }, []);
 
+  async function handleSave(e: FormEvent) {
+    e.preventDefault();
+    if (!edit || !user) return;
+
+    if (!edit.reviewerName.trim() || !edit.reviewText.trim()) {
+      setNotice({ type: 'error', message: 'Reviewer name and review text are required.' });
+      return;
+    }
+    if (edit.imageUrl && !urlIsSafe(edit.imageUrl)) {
+      setNotice({ type: 'error', message: 'Avatar image URL must use HTTPS.' });
+      return;
+    }
+
+    try {
+      await saveAdminRecord(
+        'reviews',
+        edit.id,
+        {
+          ...edit,
+          published: edit.isPublished,
+        },
+        user.uid,
+        user.email || '',
+        `Review by ${edit.reviewerName}`
+      );
+      setEdit(null);
+      setNotice({ type: 'success', message: `Testimonial by "${edit.reviewerName}" saved successfully.` });
+      refresh();
+    } catch {
+      setNotice({ type: 'error', message: 'Failed to persist review record to Firestore.' });
+    }
+  }
+
+  async function togglePublish(item: Review) {
+    if (!user) return;
+    const nextStatus = !item.isPublished && !item.published;
+    try {
+      await saveAdminRecord(
+        'reviews',
+        item.id,
+        {
+          ...item,
+          isPublished: nextStatus,
+          published: nextStatus,
+        },
+        user.uid,
+        user.email || '',
+        `Review by ${item.reviewerName || 'Client'}`
+      );
+      setNotice({
+        type: 'success',
+        message: `Testimonial ${nextStatus ? 'published publicly' : 'converted to draft'}.`,
+      });
+      refresh();
+    } catch {
+      setNotice({ type: 'error', message: 'Could not update publication state.' });
+    }
+  }
+
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`Are you sure you want to delete the testimonial by "${name}"?`)) return;
+    try {
+      await deleteAdminRecord('reviews', id, user?.uid || '', user?.email || '', `Review by ${name}`);
+      setNotice({ type: 'success', message: `Deleted testimonial by "${name}".` });
+      refresh();
+    } catch {
+      setNotice({ type: 'error', message: 'Failed to delete review record.' });
+    }
+  }
+
+  const filtered = items.filter((r) => {
+    const isPub = r.isPublished === true || r.published === true;
+    if (filter === 'published') return isPub;
+    if (filter === 'draft') return !isPub;
+    return true;
+  });
+
   return (
     <section className="admin-page">
       <div className="admin-page-header">
         <div>
           <span className="eyebrow">Reputation & Social Proof</span>
           <h1>Reviews & Client Testimonials</h1>
-          <p>
-            Moderate, verify, and publish real client endorsements. Only administrator-approved reviews
-            appear publicly.
-          </p>
+          <p>Moderate, verify, and publish real client endorsements. Only administrator-approved reviews appear publicly.</p>
         </div>
+        <button
+          type="button"
+          className="button small"
+          onClick={() => setEdit({ ...blankReview, displayOrder: items.length + 1 })}
+        >
+          <Plus size={14} /> New Testimonial
+        </button>
       </div>
 
       {notice && (
         <div className={`admin-alert ${notice.type === 'error' ? 'error' : 'success'}`}>
           <span>{notice.message}</span>
+          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss">
+            <X size={14} />
+          </button>
         </div>
       )}
 
-      <div className="admin-empty-card glass-panel">
-        <Star size={24} className="text-amber" />
-        <h3>Verified Reviews System Active</h3>
-        <p>
-          Per company integrity standards, no fabricated testimonials are pre-loaded. Verified client
-          reviews submitted through enterprise feedback channels can be published here.
-        </p>
+      {/* Filter Bar */}
+      <div className="admin-filter-bar glass-panel">
+        <div className="filter-pill-group">
+          {(['all', 'published', 'draft'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className={`button small ${filter === mode ? '' : 'ghost'}`}
+              onClick={() => setFilter(mode)}
+            >
+              {mode.charAt(0).toUpperCase() + mode.slice(1)} ({mode === 'all' ? items.length : items.filter((r) => (mode === 'published' ? r.isPublished || r.published : !(r.isPublished || r.published))).length})
+            </button>
+          ))}
+        </div>
+        <button type="button" className="button small ghost" onClick={refresh} title="Refresh list">
+          <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
+        </button>
+      </div>
+
+      {/* Editor Modal */}
+      {edit && (
+        <form className="admin-editor glass-panel" onSubmit={handleSave}>
+          <div className="editor-top-bar">
+            <h3>{edit.id ? 'Edit Testimonial' : 'Create New Testimonial'}</h3>
+            <button type="button" className="close-editor-btn" onClick={() => setEdit(null)}>
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="form-grid-2">
+            <label>
+              Reviewer Full Name *
+              <input
+                required
+                value={edit.reviewerName}
+                onChange={(e) => setEdit({ ...edit, reviewerName: e.target.value })}
+                placeholder="e.g. Dr. Elena Vance"
+              />
+            </label>
+            <label>
+              Professional Designation & Role
+              <input
+                value={edit.reviewerDesignation}
+                onChange={(e) => setEdit({ ...edit, reviewerDesignation: e.target.value })}
+                placeholder="e.g. VP of Infrastructure Engineering"
+              />
+            </label>
+          </div>
+
+          <div className="form-grid-2">
+            <label>
+              Organization / Company
+              <input
+                value={edit.company}
+                onChange={(e) => setEdit({ ...edit, company: e.target.value })}
+                placeholder="e.g. Global Distributed Systems Ltd."
+              />
+            </label>
+            <label>
+              Star Rating (1 – 5)
+              <select
+                value={edit.rating}
+                onChange={(e) => setEdit({ ...edit, rating: Number(e.target.value) })}
+              >
+                {[5, 4, 3, 2, 1].map((n) => (
+                  <option key={n} value={n}>
+                    {n} Star{n > 1 ? 's' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label>
+            Review Narrative *
+            <textarea
+              required
+              rows={4}
+              value={edit.reviewText}
+              onChange={(e) => setEdit({ ...edit, reviewText: e.target.value })}
+              placeholder="Enter client testimonial or endorsement narrative..."
+            />
+          </label>
+
+          <div className="form-grid-2">
+            <div>
+              <label>
+                Avatar / Profile Image URL (Optional)
+                <input
+                  type="url"
+                  value={edit.imageUrl}
+                  onChange={(e) => setEdit({ ...edit, imageUrl: e.target.value })}
+                  placeholder="https://..."
+                />
+              </label>
+              <ImagePreview url={edit.imageUrl} alt="Reviewer Avatar" />
+            </div>
+            <div className="order-input-wrap">
+              <label>
+                Display Order
+                <input
+                  type="number"
+                  min={1}
+                  value={edit.displayOrder}
+                  onChange={(e) => setEdit({ ...edit, displayOrder: Number(e.target.value) || 1 })}
+                />
+              </label>
+              <div className="form-row-checkboxes" style={{ marginTop: 20 }}>
+                <label className="checkbox-wrap">
+                  <input
+                    type="checkbox"
+                    checked={edit.isPublished}
+                    onChange={(e) => setEdit({ ...edit, isPublished: e.target.checked })}
+                  />
+                  <span>Publish to live public website</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="editor-actions">
+            <button type="button" className="button small ghost" onClick={() => setEdit(null)}>
+              Cancel
+            </button>
+            <button type="submit" className="button small">
+              <Save size={14} /> Save Testimonial
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Records List */}
+      <div className="admin-records glass-panel">
+        {filtered.map((item) => {
+          const isPub = item.isPublished === true || item.published === true;
+          return (
+            <article key={item.id} className="admin-record-row glass-panel">
+              <div className="record-info">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.reviewerName} className="url-preview-thumb" />
+                ) : (
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 8,
+                      background: 'var(--bg-surface-secondary)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: 'var(--color-amber)',
+                    }}
+                  >
+                    <Star size={20} />
+                  </div>
+                )}
+                <div className="record-main-col">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <strong>{item.reviewerName}</strong>
+                    <span className={`status-pill ${isPub ? 'published' : 'draft'}`}>
+                      {isPub ? 'Published' : 'Draft'}
+                    </span>
+                    <span style={{ color: 'var(--color-amber)', fontSize: 12 }}>
+                      {'★'.repeat(item.rating || 5)}{'☆'.repeat(5 - (item.rating || 5))}
+                    </span>
+                  </div>
+                  <div className="record-meta">
+                    {item.reviewerDesignation && <span>{item.reviewerDesignation}</span>}
+                    {item.company && <span>· {item.company}</span>}
+                    <span>· Order #{item.displayOrder || 1}</span>
+                  </div>
+                  <p className="record-desc-preview" title={item.reviewText}>
+                    "{item.reviewText}"
+                  </p>
+                </div>
+              </div>
+
+              <div className="record-actions-col">
+                <button
+                  type="button"
+                  className="record-icon-btn"
+                  onClick={() => togglePublish(item)}
+                  title={isPub ? 'Unpublish' : 'Publish'}
+                >
+                  {isPub ? 'Unpublish' : 'Publish'}
+                </button>
+                <button
+                  type="button"
+                  className="record-icon-btn"
+                  onClick={() =>
+                    setEdit({
+                      ...blankReview,
+                      ...item,
+                      reviewerName: item.reviewerName,
+                      reviewerDesignation: item.reviewerDesignation || item.designation || '',
+                      company: item.company || item.organization || '',
+                      reviewText: item.reviewText,
+                      rating: item.rating || 5,
+                      imageUrl: item.imageUrl || item.image || '',
+                      displayOrder: item.displayOrder || 1,
+                      isPublished: isPub,
+                    })
+                  }
+                  title="Edit testimonial"
+                >
+                  <Edit3 size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="record-icon-btn danger"
+                  onClick={() => handleDelete(item.id, item.reviewerName)}
+                  title="Delete testimonial"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </article>
+          );
+        })}
+
+        {filtered.length === 0 && !loading && (
+          <div className="admin-empty-card glass-panel">
+            <Star size={24} className="text-amber" />
+            <p>
+              {filter === 'all'
+                ? 'No client testimonials stored in Firestore yet. Click "New Testimonial" to create your first endorsement.'
+                : `No testimonials found with status "${filter}".`}
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -1493,51 +1817,407 @@ export function WebsiteSettingsManager() {
 
 export function AdministratorsManager() {
   const { user } = useAuth();
+  const [admins, setAdmins] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Modals state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminName, setNewAdminName] = useState('');
+  const [newAdminRole, setNewAdminRole] = useState<'admin' | 'superadmin' | 'editor'>('admin');
+
+  const [editAdmin, setEditAdmin] = useState<AdminUser | null>(null);
+
+  const refreshAdmins = async () => {
+    setLoading(true);
+    try {
+      const records = await listAdminRecords<AdminUser>('admins', 'createdAt');
+      if (records.length > 0) {
+        setAdmins(records);
+      } else if (user) {
+        // Fallback representation of active session user
+        setAdmins([
+          {
+            uid: user.uid,
+            email: user.email || 'admin@crezonices.com',
+            displayName: user.displayName || 'Primary Administrator',
+            role: 'superadmin',
+            status: 'active',
+            mustChangePassword: false,
+          },
+        ]);
+      }
+    } catch {
+      setNotice({ type: 'error', message: 'Could not load administrator accounts from Firestore.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshAdmins();
+  }, [user]);
+
+  async function handleCreateAdmin(e: FormEvent) {
+    e.preventDefault();
+    if (!user || !newAdminEmail.trim()) return;
+
+    try {
+      // Create Firestore metadata record
+      const tempUid = `pending-${Date.now()}`;
+      await saveAdminRecord(
+        'admins',
+        tempUid,
+        {
+          uid: tempUid,
+          email: newAdminEmail.trim().toLowerCase(),
+          displayName: newAdminName.trim() || `${newAdminEmail.split('@')[0]} Admin`,
+          role: newAdminRole,
+          status: 'active',
+          mustChangePassword: true,
+          createdBy: user.email || user.uid,
+        },
+        user.uid,
+        user.email || '',
+        `Admin account for ${newAdminEmail}`
+      );
+
+      setNotice({
+        type: 'success',
+        message: `Registered administrator metadata for "${newAdminEmail}". To finalize credentials, execute: node scripts/create-admin-user.mjs ${newAdminEmail} ${newAdminRole}`,
+      });
+      setShowAddModal(false);
+      setNewAdminEmail('');
+      setNewAdminName('');
+      refreshAdmins();
+    } catch {
+      setNotice({ type: 'error', message: 'Failed to record administrator document.' });
+    }
+  }
+
+  async function handleUpdateAdmin(e: FormEvent) {
+    e.preventDefault();
+    if (!editAdmin || !user) return;
+
+    try {
+      await saveAdminRecord(
+        'admins',
+        editAdmin.uid || editAdmin.id,
+        {
+          ...editAdmin,
+          displayName: editAdmin.displayName || '',
+          role: editAdmin.role,
+        },
+        user.uid,
+        user.email || '',
+        `Updated admin ${editAdmin.email}`
+      );
+      setNotice({ type: 'success', message: `Updated administrator profile for ${editAdmin.email}.` });
+      setEditAdmin(null);
+      refreshAdmins();
+    } catch {
+      setNotice({ type: 'error', message: 'Failed to update administrator profile.' });
+    }
+  }
+
+  async function toggleStatus(targetAdmin: AdminUser) {
+    if (!user) return;
+
+    // Safety check: protect the last active administrator
+    const activeAdmins = admins.filter((a) => a.status === 'active');
+    if (targetAdmin.status === 'active' && activeAdmins.length <= 1) {
+      alert('Safety Lockout Prevention: You cannot suspend or revoke the only remaining active administrator.');
+      return;
+    }
+
+    const nextStatus = targetAdmin.status === 'active' ? 'suspended' : 'active';
+    const confirmMsg =
+      nextStatus === 'suspended'
+        ? `Are you sure you want to suspend administrator privileges for "${targetAdmin.email}"?`
+        : `Reactivate administrator privileges for "${targetAdmin.email}"?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      await saveAdminRecord(
+        'admins',
+        targetAdmin.uid || targetAdmin.id,
+        {
+          ...targetAdmin,
+          status: nextStatus,
+        },
+        user.uid,
+        user.email || '',
+        `${nextStatus === 'suspended' ? 'Suspended' : 'Reactivated'} admin ${targetAdmin.email}`
+      );
+      setNotice({
+        type: 'success',
+        message: `Administrator "${targetAdmin.email}" status updated to ${nextStatus}.`,
+      });
+      refreshAdmins();
+    } catch {
+      setNotice({ type: 'error', message: 'Failed to update administrator status.' });
+    }
+  }
 
   return (
     <section className="admin-page">
       <div className="admin-page-header">
         <div>
-          <span className="eyebrow">Access Control</span>
+          <span className="eyebrow">Access Governance</span>
           <h1>Administrator Management</h1>
-          <p>Security protocols, authenticated session telemetry, and role verification.</p>
+          <p>Role-based access control, active administrative directories, and security audit integrity.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" className="button small ghost" onClick={refreshAdmins}>
+            <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
+          </button>
+          <button type="button" className="button small" onClick={() => setShowAddModal(true)}>
+            <Plus size={14} /> Add Administrator
+          </button>
         </div>
       </div>
 
-      <div className="admin-records glass-panel">
-        <div className="admin-auth-card">
-          <div className="auth-card-top">
-            <ShieldCheck size={28} className="text-cyan" />
+      {notice && (
+        <div className={`admin-alert ${notice.type === 'error' ? 'error' : 'success'}`}>
+          <span>{notice.message}</span>
+          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Active Session Telemetry Card */}
+      <div className="admin-auth-card glass-panel" style={{ marginBottom: 24 }}>
+        <div className="auth-card-top">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <ShieldCheck size={32} className="text-cyan" />
             <div>
-              <h3>Active Administrator Session</h3>
+              <span className="eyebrow" style={{ fontSize: 11, marginBottom: 2 }}>Current Active Session</span>
+              <h3 style={{ margin: 0 }}>{user?.displayName || 'Primary Administrator'}</h3>
               <span className="auth-email">{user?.email}</span>
             </div>
           </div>
+          <span className="status-pill published">Active Superadmin Session</span>
+        </div>
 
-          <div className="auth-spec-grid">
-            <div className="spec-box">
-              <span>Authentication Provider</span>
-              <strong>Firebase Auth (Email/Pass)</strong>
-            </div>
-            <div className="spec-box">
-              <span>Security Privilege</span>
-              <strong className="text-cyan">Custom Claim: role='admin'</strong>
-            </div>
-            <div className="spec-box">
-              <span>Public Registration</span>
-              <strong className="text-amber">Disabled (Zero Trust)</strong>
-            </div>
+        <div className="auth-spec-grid">
+          <div className="spec-box">
+            <span>Authentication Authority</span>
+            <strong>Firebase Auth (HMAC / RSA Token)</strong>
+          </div>
+          <div className="spec-box">
+            <span>Privilege Verification</span>
+            <strong className="text-cyan">Custom Claim: admin == true</strong>
+          </div>
+          <div className="spec-box">
+            <span>Public Registration</span>
+            <strong className="text-amber">Disabled (Zero Trust)</strong>
           </div>
         </div>
+      </div>
 
-        <div className="admin-security-instructions">
-          <h4>Adding Additional Administrators</h4>
-          <p>
-            To onboard an additional authorized administrator without exposing root secrets or creating
-            public registration vectors, execute the privileged setup script in your local environment:
-          </p>
-          <pre className="code-snippet">node scripts/set-admin-claims.mjs &lt;FIREBASE_USER_UID&gt;</pre>
+      {/* Add Administrator Modal */}
+      {showAddModal && (
+        <div className="admin-modal-backdrop" onClick={() => setShowAddModal(false)}>
+          <div className="admin-modal-card glass-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Onboard New Administrator</h3>
+              <button type="button" className="close-editor-btn" onClick={() => setShowAddModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateAdmin}>
+              <div className="modal-body">
+                <label>
+                  Administrator Email *
+                  <input
+                    type="email"
+                    required
+                    value={newAdminEmail}
+                    onChange={(e) => setNewAdminEmail(e.target.value)}
+                    placeholder="e.g. security-lead@crezonices.com"
+                  />
+                </label>
+                <div className="form-grid-2">
+                  <label>
+                    Display Name
+                    <input
+                      value={newAdminName}
+                      onChange={(e) => setNewAdminName(e.target.value)}
+                      placeholder="e.g. Lead Engineer"
+                    />
+                  </label>
+                  <label>
+                    Role Privilege
+                    <select
+                      value={newAdminRole}
+                      onChange={(e) => setNewAdminRole(e.target.value as any)}
+                    >
+                      <option value="admin">Administrator (Full CMS)</option>
+                      <option value="superadmin">Super Administrator (Root Access)</option>
+                      <option value="editor">Content Editor (Read/Write CMS)</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="admin-security-instructions" style={{ margin: '12px 0' }}>
+                  <h4>Trusted Backend Provisioning Requirement</h4>
+                  <p>
+                    Per zero-trust security rules, administrative credentials and password hashes are never created in the browser.
+                    Saving this form registers the administrator profile document. To generate the secure authentication credentials
+                    and assign the custom claim, run the privileged CLI script:
+                  </p>
+                  <pre className="code-snippet">
+                    node scripts/create-admin-user.mjs {newAdminEmail || '&lt;email&gt;'} {newAdminRole}
+                  </pre>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="button small ghost" onClick={() => setShowAddModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="button small">
+                  <Save size={14} /> Register Administrator
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
+      )}
+
+      {/* Edit Administrator Modal */}
+      {editAdmin && (
+        <div className="admin-modal-backdrop" onClick={() => setEditAdmin(null)}>
+          <div className="admin-modal-card glass-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Edit Administrator Profile</h3>
+              <button type="button" className="close-editor-btn" onClick={() => setEditAdmin(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateAdmin}>
+              <div className="modal-body">
+                <label>
+                  Email Identifier
+                  <input type="email" disabled value={editAdmin.email} />
+                </label>
+                <label>
+                  Display Name
+                  <input
+                    value={editAdmin.displayName || ''}
+                    onChange={(e) => setEditAdmin({ ...editAdmin, displayName: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Administrative Role
+                  <select
+                    value={editAdmin.role}
+                    onChange={(e) => setEditAdmin({ ...editAdmin, role: e.target.value as any })}
+                  >
+                    <option value="admin">Administrator</option>
+                    <option value="superadmin">Super Administrator</option>
+                    <option value="editor">Content Editor</option>
+                  </select>
+                </label>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="button small ghost" onClick={() => setEditAdmin(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="button small">
+                  <Save size={14} /> Save Profile
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Administrator Records Directory */}
+      <div className="admin-records glass-panel">
+        <h3 style={{ margin: '8px 0 16px', fontSize: 18 }}>Authorized Administrator Directory</h3>
+        {admins.map((adm) => {
+          const isActive = adm.status === 'active';
+          const isCurrentUser = adm.email === user?.email;
+          return (
+            <article key={adm.uid || adm.email} className="admin-record-row glass-panel">
+              <div className="record-info">
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 8,
+                    background: 'var(--bg-surface-secondary)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    color: isActive ? 'var(--color-cyan)' : 'var(--color-amber)',
+                  }}
+                >
+                  <ShieldCheck size={22} />
+                </div>
+                <div className="record-main-col">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <strong>{adm.displayName || adm.email}</strong>
+                    {isCurrentUser && (
+                      <span className="status-pill published" style={{ fontSize: 10 }}>
+                        Current User
+                      </span>
+                    )}
+                    <span className={`status-pill ${isActive ? 'published' : 'draft'}`}>
+                      {adm.status?.toUpperCase() || 'ACTIVE'}
+                    </span>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        fontFamily: 'var(--font-mono)',
+                        background: 'rgba(56, 189, 248, 0.12)',
+                        color: 'var(--color-cyan)',
+                      }}
+                    >
+                      {adm.role?.toUpperCase() || 'ADMIN'}
+                    </span>
+                  </div>
+                  <div className="record-meta">
+                    <span>{adm.email}</span>
+                    <span>· UID: {adm.uid || 'Synced'}</span>
+                    {adm.mustChangePassword && <span className="text-amber">· Password reset required on next sign-in</span>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="record-actions-col">
+                <button
+                  type="button"
+                  className="record-icon-btn"
+                  onClick={() => setEditAdmin(adm)}
+                  title="Edit profile metadata"
+                >
+                  <Edit3 size={15} />
+                </button>
+                <button
+                  type="button"
+                  className={`record-icon-btn ${isActive ? 'danger' : ''}`}
+                  onClick={() => toggleStatus(adm)}
+                  title={isActive ? 'Suspend Administrator' : 'Reactivate Administrator'}
+                >
+                  {isActive ? 'Suspend' : 'Reactivate'}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+
+        {admins.length === 0 && !loading && (
+          <div className="admin-empty-card glass-panel">
+            <Users size={24} className="text-muted" />
+            <p>No administrator metadata records found in Firestore collection 'admins'.</p>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -1604,7 +2284,7 @@ export function ActivityLogsViewer() {
 
 export function PageManagementManager() {
   const { user } = useAuth();
-  const [selectedPage, setSelectedPage] = useState<'home' | 'projects' | 'about' | 'services' | 'founders' | 'contact'>('home');
+  const [selectedPage, setSelectedPage] = useState<'homepage' | 'projects' | 'about' | 'services' | 'founders' | 'contact'>('homepage');
   const [notice, setNotice] = useState<string | null>(null);
 
   const [pageData, setPageData] = useState({
@@ -1619,7 +2299,14 @@ export function PageManagementManager() {
       if (res) setPageData(res);
       else {
         // Local defaults
-        if (selectedPage === 'projects') {
+        if (selectedPage === 'homepage') {
+          setPageData({
+            eyebrow: 'Pioneering Intelligent Systems',
+            title: 'Architecting intelligent solutions for an interconnected future.',
+            copy: 'Crezonices engineers advanced AI systems, digital platforms, and cybersecurity architectures.',
+            badge: 'Intelligence In Sync',
+          });
+        } else if (selectedPage === 'projects') {
           setPageData({
             eyebrow: 'Projects & Engineering Portfolio',
             title: 'Intelligent systems, applications, and technology in development.',
@@ -1632,6 +2319,27 @@ export function PageManagementManager() {
             title: 'Meet the Directors of Crezonices.',
             copy: 'Leadership, vision and direction behind Crezonices. Our two Directors combine strategic technological vision, technical craft, and an unwavering commitment to engineering integrity.',
             badge: 'Executive Board',
+          });
+        } else if (selectedPage === 'about') {
+          setPageData({
+            eyebrow: 'About Crezonices',
+            title: 'Building high-reliability software, autonomous intelligence, and secure cloud ecosystems.',
+            copy: 'Founded on core principles of computational precision and secure architecture.',
+            badge: 'Enterprise Engineering',
+          });
+        } else if (selectedPage === 'services') {
+          setPageData({
+            eyebrow: 'Capabilities & Solutions',
+            title: 'Full-Spectrum Engineering for Modern Enterprises',
+            copy: 'From autonomous AI agent architectures to battle-hardened cybersecurity.',
+            badge: 'Full-Spectrum',
+          });
+        } else if (selectedPage === 'contact') {
+          setPageData({
+            eyebrow: 'Get In Touch',
+            title: 'Start a Conversation',
+            copy: 'Ready to engineer next-generation software or safeguard your infrastructure?',
+            badge: 'Direct Access',
           });
         }
       }
@@ -1669,7 +2377,7 @@ export function PageManagementManager() {
       {notice && <div className="admin-alert success"><span>{notice}</span></div>}
 
       <div className="admin-tab-row glass-panel">
-        {(['home', 'projects', 'about', 'services', 'founders', 'contact'] as const).map((p) => (
+        {(['homepage', 'projects', 'about', 'services', 'founders', 'contact'] as const).map((p) => (
           <button
             key={p}
             type="button"

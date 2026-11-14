@@ -64,15 +64,12 @@ service cloud.firestore {
     //
     // ===============================================================
 
-    // Administrative privileges check
+    // Administrative privileges check - strictly verified via Firebase Custom Claims
     function isAdmin() {
       return request.auth != null && (
         request.auth.token.admin == true ||
-        request.auth.token.role == 'admin' ||
-        (request.auth.token.email != null && (
-          request.auth.token.email == 'admin@crezonices.com' ||
-          request.auth.token.email == 'director@crezonices.com'
-        ))
+        request.auth.token.role == 'superadmin' ||
+        request.auth.token.role == 'admin'
       );
     }
 
@@ -158,6 +155,13 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isAdmin();
       allow update, delete: if false;
+    }
+
+    // 9. Administrator Profile & Governance Metadata
+    // Strictly restricted to verified administrators; credentials/keys are NEVER stored here
+    match /admins/{uid} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
     // Default deny for all other paths

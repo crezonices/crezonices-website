@@ -162,3 +162,17 @@ export interface CompanySettings {
   socialLinks: Record<string, string | undefined>;
   description: string;
 }
+
+export interface AdminUser {
+  id?: string;
+  uid: string;
+  email: string;
+  displayName?: string;
+  role: 'superadmin' | 'admin' | 'editor';
+  status: 'active' | 'suspended';
+  createdAt?: any;
+  updatedAt?: any;
+  lastLoginAt?: any;
+  createdBy?: string;
+  mustChangePassword?: boolean;
+}

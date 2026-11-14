@@ -2,19 +2,29 @@ import { Link } from 'react-router-dom';
 import { Award, Briefcase, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import { FounderProfile } from '../components/common/FounderProfile';
 import { PageHero } from '../components/common/PageHero';
-import { useTeam } from '../features/content/usePublicContent';
+import { usePageContent, useTeam } from '../features/content/usePublicContent';
 
 export function FoundersPage() {
   const { data: founders, error } = useTeam();
+  const content = usePageContent('founders', {
+    eyebrow: 'Directors & Leadership',
+    title: 'Meet the Directors of Crezonices.',
+    description:
+      'Leadership, vision and direction behind Crezonices. Our two Directors combine strategic technological vision, technical craft, and an unwavering commitment to engineering integrity.',
+    badge: 'Executive Board',
+  });
 
   return (
     <main>
       <PageHero
         kind="founders"
-        eyebrow="Directors & Leadership"
-        title="Meet the Directors of Crezonices."
-        copy="Leadership, vision and direction behind Crezonices. Our two Directors combine strategic technological vision, technical craft, and an unwavering commitment to engineering integrity."
-        badge="Executive Board"
+        eyebrow={content.eyebrow || 'Directors & Leadership'}
+        title={content.title || 'Meet the Directors of Crezonices.'}
+        copy={
+          content.description ||
+          'Leadership, vision and direction behind Crezonices. Our two Directors combine strategic technological vision, technical craft, and an unwavering commitment to engineering integrity.'
+        }
+        badge={content.badge || 'Executive Board'}
       />
 
       <section className="section founder-list-section">

@@ -20,18 +20,29 @@ import {
 import { PageHero } from '../components/common/PageHero';
 import { EnquiryForm } from '../components/common/EnquiryForm';
 import { SectionHeading } from '../components/common/SectionHeading';
-import { useServices } from '../features/content/usePublicContent';
+import { usePageContent, useServices } from '../features/content/usePublicContent';
 
 export function ServicesPage() {
   const { data: services } = useServices();
+  const content = usePageContent('services', {
+    eyebrow: 'Professional Services & Engineering',
+    title: 'Purpose-built technological solutions for the digital era.',
+    description:
+      'From modern responsive web systems to intelligent algorithms, secure architectures, and connected edge devices, Crezonices delivers practical and scalable engineering.',
+    badge: 'Engineered for Scalability',
+  });
+
   return (
     <main>
       <PageHero
         kind="services"
-        eyebrow="Professional Services & Engineering"
-        title="Purpose-built technological solutions for the digital era."
-        copy="From modern responsive web systems to intelligent algorithms, secure architectures, and connected edge devices, Crezonices delivers practical and scalable engineering."
-        badge="Engineered for Scalability"
+        eyebrow={content.eyebrow || 'Professional Services & Engineering'}
+        title={content.title || 'Purpose-built technological solutions for the digital era.'}
+        copy={
+          content.description ||
+          'From modern responsive web systems to intelligent algorithms, secure architectures, and connected edge devices, Crezonices delivers practical and scalable engineering.'
+        }
+        badge={content.badge || 'Engineered for Scalability'}
       />
 
       {/* DETAILED TECHNICAL DOMAIN BREAKDOWN (Visual Storytelling) */}

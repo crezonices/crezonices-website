@@ -138,11 +138,53 @@ export async function subscribeSiteSettings(
   try {
     const fs = await import('firebase/firestore');
     const db = await getFirebaseDb();
-    return fs.onSnapshot(fs.doc(db, 'siteSettings', 'general'), (docSnap) => {
-      if (docSnap.exists()) {
-        set(docSnap.data() as SiteSettings);
+
+    const unsubGeneral = fs.onSnapshot(fs.doc(db, 'siteSettings', 'general'), (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        set({
+          companyName: d.siteTitle,
+          metaTitle: d.metaTitle || d.siteTitle,
+          metaDescription: d.metaDescription,
+          footerCopyright: d.footerCopyright,
+          maintenanceMode: d.maintenanceMode,
+        });
       }
     });
+
+    const unsubContact = fs.onSnapshot(fs.doc(db, 'siteSettings', 'contact'), (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        set({
+          email: d.email,
+          phone: d.phone,
+          address: d.officeAddress,
+          officeHours: d.officeHours,
+          responseTime: d.responseGuarantee,
+        });
+      }
+    });
+
+    const unsubSocial = fs.onSnapshot(fs.doc(db, 'siteSettings', 'social'), (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        set({
+          socialLinks: {
+            linkedin: d.linkedin || '',
+            github: d.github || '',
+            twitter: d.twitter || '',
+            instagram: d.instagram || '',
+            youtube: d.youtube || '',
+          },
+        });
+      }
+    });
+
+    return () => {
+      unsubGeneral();
+      unsubContact();
+      unsubSocial();
+    };
   } catch {
     return () => {};
   }

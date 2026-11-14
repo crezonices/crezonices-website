@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Activity,
   Briefcase,
@@ -55,6 +55,39 @@ export function AdminDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const toggleBtnRef = useRef<HTMLButtonElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Manage accessibility, body scroll lock, and Escape dismissal for mobile sidebar
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      const origBodyOverflow = document.body.style.overflow;
+      const origHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+
+      const timer = setTimeout(() => {
+        closeBtnRef.current?.focus();
+      }, 50);
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setMobileMenuOpen(false);
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        clearTimeout(timer);
+        document.body.style.overflow = origBodyOverflow;
+        document.documentElement.style.overflow = origHtmlOverflow;
+        window.removeEventListener('keydown', handleKeyDown);
+        toggleBtnRef.current?.focus();
+      };
+    }
+  }, [mobileMenuOpen]);
 
   const handleLogout = async () => {
     try {
@@ -71,10 +104,12 @@ export function AdminDashboard() {
       {/* Mobile Top Bar */}
       <header className="admin-mobile-bar mobile-only">
         <button
+          ref={toggleBtnRef}
           type="button"
           className="admin-menu-toggle"
           onClick={() => setMobileMenuOpen((prev) => !prev)}
-          aria-label="Toggle admin navigation"
+          aria-label={mobileMenuOpen ? 'Close admin navigation' : 'Open admin navigation'}
+          aria-expanded={mobileMenuOpen}
         >
           {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -88,13 +123,28 @@ export function AdminDashboard() {
       </header>
 
       {/* Admin Sidebar Navigation */}
-      <aside className={`admin-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+      <aside
+        className={`admin-sidebar ${mobileMenuOpen ? 'open' : ''}`}
+        role="navigation"
+        aria-label="Admin Navigation Sidebar"
+      >
         <div className="admin-brand">
-          <ShieldCheck size={22} className="text-cyan" />
-          <div>
-            <span className="brand-name">Crezonices</span>
-            <span className="brand-sub">Enterprise CMS v3.0</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <ShieldCheck size={22} className="text-cyan" />
+            <div>
+              <span className="brand-name">Crezonices</span>
+              <span className="brand-sub">Enterprise CMS v3.0</span>
+            </div>
           </div>
+          <button
+            ref={closeBtnRef}
+            type="button"
+            className="admin-sidebar-close-btn mobile-only"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close navigation sidebar"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         <nav className="admin-nav" aria-label="Administrator navigation">

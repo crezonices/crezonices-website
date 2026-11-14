@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Search, Sparkles } from 'lucide-react';
 import { PageHero } from '../components/common/PageHero';
 import { ProjectCard } from '../components/common/ProjectCard';
-import { useProjects } from '../features/content/usePublicContent';
+import { usePageContent, useProjects } from '../features/content/usePublicContent';
 import type { ProjectCategory } from '../types/models';
 
 const categories: ['All' | ProjectCategory, ...ProjectCategory[]] = [
@@ -18,6 +18,13 @@ export function ProjectsPage() {
   const [category, setCategory] = useState<(typeof categories)[number]>('All');
   const [query, setQuery] = useState('');
   const { data: projects, error } = useProjects();
+  const content = usePageContent('projects', {
+    eyebrow: 'Projects & Engineering Portfolio',
+    title: 'Intelligent systems, applications, and technology in development.',
+    description:
+      'Explore the projects, technological concepts, and digital solutions engineered by the Crezonices team to address real-world challenges.',
+    badge: 'Live Portfolio',
+  });
 
   const filtered = useMemo(
     () =>
@@ -35,10 +42,13 @@ export function ProjectsPage() {
     <main>
       <PageHero
         kind="projects"
-        eyebrow="Projects & Engineering Portfolio"
-        title="Intelligent systems, applications, and technology in development."
-        copy="Explore the projects, technological concepts, and digital solutions engineered by the Crezonices team to address real-world challenges."
-        badge="Live Portfolio"
+        eyebrow={content.eyebrow || 'Projects & Engineering Portfolio'}
+        title={content.title || 'Intelligent systems, applications, and technology in development.'}
+        copy={
+          content.description ||
+          'Explore the projects, technological concepts, and digital solutions engineered by the Crezonices team to address real-world challenges.'
+        }
+        badge={content.badge || 'Live Portfolio'}
       />
 
       <section className="section project-browser">
