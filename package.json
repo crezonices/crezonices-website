@@ -24,6 +24,8 @@
     "dotenv": "^18.0.10",
     "express": "^5.3.0",
     "firebase": "^13.3.0",
+    "firebase-admin": "^14.5.1",
+    "google-auth-library": "^11.3.4",
     "lucide-react": "^1.72.0",
     "motion": "^14.14.0",
     "multer": "^2.5.0",
@@ -41,7 +43,6 @@
     "@types/express": "^5.0.6",
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.6",
-    "firebase-admin": "^14.5.1",
     "jsdom": "^31.0.1",
     "tailwindcss": "^4.3.5",
     "vitest": "^5.1.0"
