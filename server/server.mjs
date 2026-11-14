@@ -4,7 +4,7 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initializeApp, applicationDefault, getApps, getApp } from 'firebase-admin/app';
+import { initializeApp, applicationDefault, getApps, getApp, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { OAuth2Client } from 'google-auth-library';
@@ -82,11 +82,46 @@ const REDIRECT_URI = GOOGLE_REDIRECT_URI;
 // 2. FIREBASE ADMIN SDK INITIALIZATION
 // ============================================================================
 
+let adminCredential = null;
+
+// 1. Check for FIREBASE_SERVICE_ACCOUNT_KEY env var (Render / Cloud deployment)
+if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+  try {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim();
+    const saObj = raw.startsWith('{')
+      ? JSON.parse(raw)
+      : JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'));
+    adminCredential = cert(saObj);
+  } catch (err) {
+    console.warn('[Crezonices Backend] Warning parsing FIREBASE_SERVICE_ACCOUNT_KEY:', err.message);
+  }
+}
+
+// 2. Check for local service-account.json file in .credentials
+const localSaPath = path.join(credentialsDir, 'service-account.json');
+if (!adminCredential && fs.existsSync(localSaPath)) {
+  try {
+    const saObj = JSON.parse(fs.readFileSync(localSaPath, 'utf-8'));
+    adminCredential = cert(saObj);
+  } catch (err) {
+    console.warn('[Crezonices Backend] Warning reading local service-account.json:', err.message);
+  }
+}
+
+// 3. Fallback to Google Application Default Credentials
+if (!adminCredential) {
+  try {
+    adminCredential = applicationDefault();
+  } catch (err) {
+    // ADC not available in plain dev environment
+  }
+}
+
 const firebaseApp =
   getApps().length > 0
     ? getApp()
     : initializeApp({
-        credential: applicationDefault(),
+        ...(adminCredential ? { credential: adminCredential } : {}),
         projectId: GCLOUD_PROJECT,
       });
 
@@ -235,8 +270,33 @@ async function resolveSubfolderId(client, folderName) {
 // 4. EXPRESS APP & MIDDLEWARES
 // ============================================================================
 
+const allowedOrigins = [
+  'https://crezonices-2026.web.app',
+  'https://crezonices-2026.firebaseapp.com',
+  'http://localhost:5173',
+  'http://localhost:5000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5000',
+];
+
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.web.app') ||
+        origin.endsWith('.firebaseapp.com') ||
+        origin.endsWith('.onrender.com')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
